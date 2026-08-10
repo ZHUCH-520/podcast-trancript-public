@@ -1,122 +1,122 @@
 # podcast-trancript-public
 
-把播客音频、视频、节目链接或粗转录，整理成一份好读的文字稿。
+Turn podcast audio, video, episode links, or rough transcripts into clean, readable transcripts.
 
-它会补标点、分段、核对人名和说话人，尽量保留原话。处理完会生成 Markdown 和 HTML，方便继续编辑、存档或分享。
+The skill fixes punctuation and paragraph breaks, checks names and speaker labels, and keeps the substance of the conversation intact. It produces Markdown for editing and HTML for reading or sharing.
 
-[查看可安装的 skill](./podcast-trancript-public/SKILL.md) · [English introduction](./docs/index.html) · [中文介绍](./docs/zh.html)
+[View the installable skill](./podcast-trancript-public/SKILL.md) · [English introduction](./docs/index.html) · [中文介绍](./docs/zh.html)
 
-## 适合什么内容
+## What it works well with
 
-- 播客访谈和多人圆桌
-- 长视频或录音
-- 已经转过一遍、但错字和断句很多的粗稿
-- 中文、英文或英中双语内容
+- Podcast interviews and roundtables
+- Long-form video or recorded conversations
+- Rough transcripts with poor punctuation or frequent recognition errors
+- English, Chinese, or bilingual material
 
-## 安装
+## Install
 
-在 Codex 里调用 `$skill-installer`，把这个 skill 在 GitHub 上的地址交给它：
-
-```text
-用 $skill-installer 安装这个 skill：https://github.com/ZHUCH-520/podcast-trancript-public/tree/main/podcast-trancript-public
-```
-
-装好后，贴一集节目链接就能开始：
+Call `$skill-installer` in Codex and give it the skill's GitHub address:
 
 ```text
-用 $podcast-trancript-public 处理这集播客，输出中文 Markdown 和 HTML：<节目链接>
+Use $skill-installer to install this skill: https://github.com/ZHUCH-520/podcast-trancript-public/tree/main/podcast-trancript-public
 ```
 
-也可以选择电脑里的音频或视频：
+Once installed, send an episode link:
 
 ```text
-用 $podcast-trancript-public 整理这个音频，保留英文，生成 Markdown 和 HTML。
+Use $podcast-trancript-public to process this podcast in English and create Markdown and HTML: <episode link>
 ```
 
-手上已经有粗转录时，直接把文稿交给它，不用再跑语音识别。
+You can also choose local audio or video:
 
-## 第一次处理音视频
+```text
+Use $podcast-trancript-public to edit this recording in English and create Markdown and HTML.
+```
 
-你不用先装好 Whisper。第一次收到音频或视频时，skill 会先检查电脑，再把准备方案列出来。看过下面这些信息并同意后，它才会下载：
+If you already have a rough transcript, send the text directly. Speech recognition is not required.
 
-- 这台电脑会用 MLX Whisper 还是 faster-whisper
-- 推荐哪个模型，也可以自己换成别的档位
-- 大约要下载多少、文件存在哪里
-- 需要联网做什么
+## Your first audio or video
 
-| 模型 | 更适合 | 需要留意 |
+You do not need to set up Whisper in advance. When the skill receives audio or video for the first time, it checks your computer and shows a setup plan before downloading anything:
+
+- Whether your computer will use MLX Whisper or faster-whisper
+- Which model it recommends, with the option to choose another
+- The approximate download size and storage location
+- What requires a network connection
+
+| Model | Best for | Tradeoff |
 |---|---|---|
-| `small` | 先试一集、电脑配置普通 | 下载小、速度快；人名、口音和嘈杂录音可能需要多改一些 |
-| `turbo` | 新一些的 Apple Silicon Mac，或有合适显卡的 Windows | 速度和效果比较均衡 |
-| `large-v3` | 人名多、口音重、录音质量一般 | 下载最大，也更吃时间和内存 |
+| `small` | Trying one episode or using modest hardware | Small and fast; names, accents, and noisy audio may need more correction |
+| `turbo` | A newer Apple Silicon Mac or Windows with a suitable GPU | A good balance of speed and accuracy |
+| `large-v3` | Name-heavy shows, strong accents, or uneven recordings | The largest download, with higher memory and processing needs |
 
-Apple Silicon Mac 会走 MLX Whisper；Intel Mac 和 Windows 会走 faster-whisper。模型放在系统的用户缓存目录，不会塞进 skill 文件夹。
+Apple Silicon Mac uses MLX Whisper. Intel Mac and Windows use faster-whisper. Models are stored in your operating system's user cache, not inside the skill folder.
 
-手上已经有粗转录时，这一步会直接跳过：不用装 Whisper，也不用下载模型。
+Already have a rough transcript? Skip Whisper and the model download—the skill goes straight to checking and editing the text.
 
-## 你会拿到什么
+## What you get
 
-- `transcript.md`：适合继续编辑或放进笔记工具的文字稿
-- `transcript.html`：双击就能阅读的网页版本
-- `Unresolved Items`：只有遇到听不清的人名、术语或说话人时才会出现
+- `transcript.md`: a transcript that is easy to edit or move into a notes app
+- `transcript.html`: a readable page you can open directly
+- `Unresolved Items`: included only when a name, term, or speaker still needs checking
 
-文字稿的基本结构如下：
+The basic transcript structure is:
 
 ```markdown
-# 节目标题
+# Episode title
 
-## 内容提要
+## Summary
 
-## 来源说明
+## Source notes
 
-## 完整文字稿
+## Full transcript
 
-## 待确认项
+## Unresolved items
 ```
 
-内容提要是阅读入口，不会代替完整文字稿。
+The summary is an entry point. It never replaces the full transcript.
 
-## 它会怎么处理
+## How it works
 
-1. 确认输入是链接、音视频还是现成文稿，并问清输出语言。
-2. 为这一期单独建文件夹，保留原始材料和粗转录。
-3. 检查本地转写环境，把模型选择、下载大小和保存位置告诉你；得到同意后才准备模型。
-4. 从节目页核对嘉宾和术语，再用随 skill 提供的切段脚本无损拆开长稿。
-5. 一段段补标点、分说话人、修明显错字。
-6. 合并后检查开头结尾、重复和漏段，生成 Markdown 和 HTML。
+1. Identify whether the source is a link, audio, video, or existing text, then confirm the output language.
+2. Create a folder for the episode and preserve the original media and rough transcript.
+3. Check the local transcription setup and show the model, download size, and storage location. Preparation starts only after approval.
+4. Verify guest names and terminology against the episode page, then split long transcripts losslessly with the bundled script.
+5. Fix punctuation, speaker labels, and obvious recognition errors one chunk at a time.
+6. Merge the chunks, check the beginning, ending, gaps, duplicates, and formatting, then create Markdown and HTML.
 
-整理时会保留观点、例子、限定条件和有用的口头表达。确认不了的人名不会硬猜，而是先用 `Speaker A` 或 `说话人 A` 标出来。
+Claims, examples, caveats, and useful speaking habits stay in the transcript. If a speaker's identity cannot be confirmed, the skill uses a neutral label such as `Speaker A` instead of guessing.
 
-## 文件会去哪
+## Where files go
 
-本地转写准备好后，音频和模型都留在本机。模型放在系统的用户缓存目录，节目文件和文字稿留在这次任务的文件夹里。
+After local transcription is ready, the audio and models remain on your computer. Models live in the system user cache; episode files and transcripts stay in the folder created for that task.
 
-需要联网下载节目或核对公开信息时，它会先说明。需要把音频发送给云端转写服务时，必须先得到你的同意。
+The skill explains when it needs the network to fetch an episode or verify public information. Sending audio to a cloud transcription service requires your explicit approval.
 
-生成的文字稿不会写入用户名、邮箱、电脑路径、凭据或内部日志。介绍页也没有分析脚本、追踪像素和外部字体。
+Generated transcripts do not include usernames, email addresses, local computer paths, credentials, or internal logs. The introduction pages have no analytics scripts, tracking pixels, or remote fonts.
 
-## 它不会做什么
+## What it does not do
 
-- 不绕过付费墙、登录、DRM 或平台保护
-- 不保证自动认出每一个说话人
-- 不自动安装 FFmpeg、CUDA、系统包管理器或修改电脑设置
-- 不自动上传、同步或发布生成的文件
-- 不负责推荐节目或维护收听记录
+- Bypass paywalls, sign-ins, DRM, or platform protections
+- Guarantee automatic identification of every speaker
+- Automatically install FFmpeg, CUDA, system package managers, or modify system settings
+- Upload, sync, or publish generated files automatically
+- Recommend shows or maintain listening history
 
-## 遇到问题怎么办
+## Troubleshooting
 
-| 遇到的情况 | 接下来怎么做 |
+| Situation | What to do |
 |---|---|
-| 第一次处理音视频 | 先看检查结果和下载方案，再选择 `small`、`turbo` 或 `large-v3` |
-| 提示缺少 FFmpeg、CUDA 或系统依赖 | 按提示补齐系统依赖；初始化脚本不会替你修改系统设置 |
-| 节目链接无法读取 | 提供自己合法取得的音频、视频或文稿 |
-| 说话人无法确认 | 提供官方节目页或正确姓名，也可以保留中性标签 |
-| 某一段处理失败 | 保留已经完成的部分，修复后只重试失败的段落 |
-| HTML 没有生成 | 先保留已经检查过的 Markdown，再补做网页版本 |
+| First time processing audio or video | Review the setup plan, then choose `small`, `turbo`, or `large-v3` |
+| FFmpeg, CUDA, or another system dependency is missing | Install the dependency shown in the report; the setup script does not modify system settings for you |
+| An episode link cannot be read | Provide audio, video, or text that you obtained legally |
+| A speaker cannot be identified | Share the official episode page or correct name, or keep a neutral label |
+| One chunk fails | Keep the completed chunks and retry only the failed one after fixing the cause |
+| HTML is not generated | Keep the checked Markdown, then regenerate the HTML version |
 
-## 这个文件夹里有什么
+## Repository contents
 
-- [`SKILL.md`](./podcast-trancript-public/SKILL.md)：skill 的工作说明
-- `README.md`：安装和使用方法
-- [`index.html`](./docs/index.html)：GitHub Pages 英文介绍页
-- [`zh.html`](./docs/zh.html)：GitHub Pages 中文介绍页
+- [`SKILL.md`](./podcast-trancript-public/SKILL.md): the skill's instructions
+- `README.md`: installation and usage guidance
+- [`index.html`](./docs/index.html): the English GitHub Pages introduction
+- [`zh.html`](./docs/zh.html): the Chinese GitHub Pages introduction
