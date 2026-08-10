@@ -14,6 +14,7 @@ RUNTIME_SCRIPTS = {
     "split_transcript.py",
 }
 REPOSITORY_URL = "https://github.com/ZHUCH-520/podcast-trancript-public"
+SKILL_URL = REPOSITORY_URL + "/tree/main/podcast-trancript-public"
 
 
 class LinkAudit(HTMLParser):
@@ -147,6 +148,17 @@ class PublicLayoutTest(unittest.TestCase):
         for text in (readme, *pages):
             self.assertIn(REPOSITORY_URL, text)
             self.assertNotIn("<GitHub 仓库地址>", text)
+
+    def test_page_repository_links_work_from_github_pages(self):
+        for page_path in PAGES:
+            page = page_path.read_text(encoding="utf-8")
+            with self.subTest(page=page_path.name):
+                self.assertIn(f'href="{SKILL_URL}"', page)
+                self.assertIn(f'href="{REPOSITORY_URL}#readme"', page)
+                self.assertNotIn(
+                    'href="../podcast-trancript-public/SKILL.md"', page
+                )
+                self.assertNotIn('href="../README.md"', page)
 
     def test_skill_requires_plan_and_approval_before_install(self):
         text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
