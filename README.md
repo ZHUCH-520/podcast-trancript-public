@@ -4,7 +4,7 @@
 
 它会补标点、分段、核对人名和说话人，尽量保留原话。处理完会生成 Markdown 和 HTML，方便继续编辑、存档或分享。
 
-[查看可安装的 skill](./podcast-trancript-public/SKILL.md) · [打开介绍页](./docs/index.html)
+[查看可安装的 skill](./podcast-trancript-public/SKILL.md) · [English introduction](./docs/index.html) · [中文介绍](./docs/zh.html)
 
 ## 适合什么内容
 
@@ -118,4 +118,5 @@ Apple Silicon Mac 会走 MLX Whisper；Intel Mac 和 Windows 会走 faster-whisp
 
 - [`SKILL.md`](./podcast-trancript-public/SKILL.md)：skill 的工作说明
 - `README.md`：安装和使用方法
-- [`index.html`](./docs/index.html)：可用于 GitHub Pages 的介绍页
+- [`index.html`](./docs/index.html)：GitHub Pages 英文介绍页
+- [`zh.html`](./docs/zh.html)：GitHub Pages 中文介绍页
