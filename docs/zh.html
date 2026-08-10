@@ -1,0 +1,1547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>podcast-trancript-public｜把播客整理成好读的文字稿</title>
+  <meta name="description" content="把播客音频、视频、节目链接或粗转录整理成好读的文字稿，并生成 Markdown 和 HTML。">
+  <meta name="theme-color" content="#0b0d0c">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #0b0d0c;
+      --ink-raised: #141714;
+      --paper: #f3efe4;
+      --paper-bright: #fffdf6;
+      --text: #f6f5ee;
+      --text-dark: #151713;
+      --muted: #a8ada3;
+      --muted-dark: #5d6259;
+      --rule: #3a4039;
+      --rule-light: #c9c4b7;
+      --signal: #c8ff5a;
+      --signal-dark: #263710;
+      --coral: #ff7657;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --page: min(1440px, calc(100vw - 48px));
+      --section-y: clamp(72px, 8vw, 128px);
+      --radius: 18px;
+      --focus: 0 0 0 4px rgba(200, 255, 90, 0.22);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--ink);
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-underline-offset: 0.22em;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--signal);
+      outline-offset: 4px;
+      box-shadow: var(--focus);
+    }
+
+    ::selection {
+      color: var(--ink);
+      background: var(--signal);
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 12px;
+      left: 12px;
+      padding: 10px 14px;
+      color: var(--ink);
+      background: var(--signal);
+      transform: translateY(-180%);
+      transition: transform 160ms ease;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .site-header {
+      width: var(--page);
+      min-height: 88px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 28px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: clamp(0.9rem, 1.6vw, 1.06rem);
+      font-weight: 700;
+      letter-spacing: -0.035em;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .brand-mark {
+      width: 12px;
+      height: 12px;
+      display: inline-block;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 0 5px rgba(200, 255, 90, 0.1);
+    }
+
+    .site-header nav {
+      display: flex;
+      align-items: center;
+      gap: clamp(16px, 2.6vw, 40px);
+    }
+
+    .site-header nav a {
+      color: #d8dbd3;
+      font-size: 0.9rem;
+      text-decoration: none;
+    }
+
+    .site-header nav a:hover {
+      color: var(--signal);
+    }
+
+    .site-header nav .language-link {
+      padding: 7px 10px;
+      border: 1px solid var(--rule);
+      color: var(--signal);
+      font-family: var(--mono);
+    }
+
+    .site-header nav .language-link:hover {
+      border-color: var(--signal);
+    }
+
+    .section-dark,
+    .section-paper,
+    .section-signal {
+      padding: var(--section-y) max(24px, calc((100vw - min(1440px, calc(100vw - 48px))) / 2));
+    }
+
+    .section-dark {
+      color: var(--text);
+      background: var(--ink);
+    }
+
+    .section-paper {
+      color: var(--text-dark);
+      background: var(--paper);
+    }
+
+    .section-signal {
+      color: var(--ink);
+      background: var(--signal);
+    }
+
+    .eyebrow,
+    .kicker,
+    .micro-label {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 0.77rem;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow,
+    .kicker {
+      color: var(--signal);
+    }
+
+    .section-paper .kicker {
+      color: #355500;
+    }
+
+    .hero {
+      min-height: calc(100svh - 88px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(480px, 1.1fr);
+      align-items: center;
+      gap: clamp(48px, 7vw, 112px);
+      padding-top: clamp(64px, 7vw, 106px);
+      padding-bottom: clamp(72px, 8vw, 118px);
+    }
+
+    .hero-copy h1,
+    .section-heading h2,
+    .proof-copy h2,
+    .trust-copy h2,
+    .closing h2 {
+      margin: 0;
+      font-weight: 780;
+      letter-spacing: -0.06em;
+      line-height: 0.98;
+    }
+
+    .hero-copy h1 {
+      max-width: 790px;
+      margin-top: 24px;
+      font-size: clamp(3.5rem, 7.1vw, 7.7rem);
+    }
+
+    .hero-copy > p:not(.eyebrow) {
+      max-width: 660px;
+      margin: 34px 0 0;
+      color: #d0d4cb;
+      font-size: clamp(1.1rem, 1.6vw, 1.42rem);
+      line-height: 1.55;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 40px;
+    }
+
+    .button {
+      min-height: 54px;
+      padding: 14px 21px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 1px solid #777d74;
+      color: var(--text);
+      background: transparent;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+    }
+
+    .button-primary {
+      border-color: var(--signal);
+      color: var(--ink);
+      background: var(--signal);
+    }
+
+    .button-primary:hover {
+      background: #d6ff82;
+    }
+
+    .button-ghost:hover {
+      border-color: var(--text);
+      color: var(--ink);
+      background: var(--text);
+    }
+
+    .hero-note {
+      margin-top: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+
+    .hero-note::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border: 1px solid var(--signal);
+      border-radius: 50%;
+    }
+
+    .transcript-window {
+      position: relative;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--ink-raised);
+      box-shadow: 22px 22px 0 rgba(200, 255, 90, 0.08);
+      overflow: hidden;
+    }
+
+    .window-bar {
+      min-height: 52px;
+      padding: 0 17px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 7px;
+    }
+
+    .window-dots span {
+      width: 8px;
+      height: 8px;
+      display: block;
+      border: 1px solid #696e67;
+      border-radius: 50%;
+    }
+
+    .window-dots span:first-child {
+      border-color: var(--coral);
+      background: var(--coral);
+    }
+
+    .pipeline {
+      padding: 22px 22px 8px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .pipeline span {
+      min-height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      text-align: center;
+    }
+
+    .pipeline .active {
+      border-color: var(--signal);
+      color: var(--signal);
+      background: rgba(200, 255, 90, 0.06);
+    }
+
+    .sample-block {
+      padding: 26px 28px 30px;
+    }
+
+    .sample-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .sample-heading strong {
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+    }
+
+    .sample-heading span {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+    }
+
+    .speech {
+      display: grid;
+      grid-template-columns: 68px minmax(0, 1fr);
+      gap: 15px;
+      padding: 17px 0;
+      border-top: 1px solid var(--rule);
+    }
+
+    .speech:first-of-type {
+      border-top: 0;
+    }
+
+    .speaker {
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .speech p {
+      margin: 0;
+      color: #e4e6df;
+      font-size: 0.96rem;
+    }
+
+    .speech mark {
+      color: var(--ink);
+      background: var(--signal);
+      padding: 0.08em 0.2em;
+    }
+
+    .window-footer {
+      padding: 15px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .pass {
+      color: var(--signal);
+    }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.62fr);
+      gap: clamp(40px, 8vw, 140px);
+      align-items: end;
+      margin-bottom: clamp(48px, 7vw, 92px);
+    }
+
+    .section-heading h2,
+    .proof-copy h2,
+    .trust-copy h2 {
+      margin-top: 18px;
+      font-size: clamp(3rem, 5.8vw, 6.3rem);
+    }
+
+    .section-heading > p,
+    .proof-copy > p,
+    .trust-copy > p {
+      margin: 0;
+      color: var(--muted-dark);
+      font-size: clamp(1rem, 1.5vw, 1.22rem);
+    }
+
+    .section-dark .section-heading > p,
+    .section-dark .trust-copy > p {
+      color: var(--muted);
+    }
+
+    .proof-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+      gap: clamp(42px, 7vw, 110px);
+      align-items: start;
+    }
+
+    .proof-copy {
+      position: sticky;
+      top: 32px;
+    }
+
+    .proof-copy > p {
+      margin-top: 28px;
+    }
+
+    .preserved-list {
+      margin: 36px 0 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--rule-light);
+    }
+
+    .preserved-list li {
+      padding: 14px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 1px solid var(--rule-light);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+    }
+
+    .preserved-list b {
+      color: #355500;
+    }
+
+    .compare-card {
+      border: 1px solid #252a24;
+      border-radius: var(--radius);
+      color: var(--text);
+      background: var(--ink);
+      overflow: hidden;
+    }
+
+    .compare-toolbar {
+      min-height: 64px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .compare-status {
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    .toggle-button,
+    .copy-button {
+      min-height: 40px;
+      padding: 9px 13px;
+      border: 1px solid #6b7168;
+      color: var(--text);
+      background: transparent;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    .toggle-button:hover,
+    .copy-button:hover {
+      border-color: var(--signal);
+      color: var(--signal);
+    }
+
+    .transcript-body {
+      min-height: 340px;
+      margin: 0;
+      padding: clamp(24px, 4vw, 48px);
+      color: #e5e8df;
+      background:
+        linear-gradient(rgba(200, 255, 90, 0.025) 1px, transparent 1px) 0 0 / 100% 28px,
+        var(--ink);
+      font-family: var(--mono);
+      font-size: clamp(0.88rem, 1.3vw, 1.03rem);
+      line-height: 1.9;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .compare-note {
+      margin: 0;
+      padding: 16px 18px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .no-script-sample {
+      padding: 18px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      white-space: pre-wrap;
+    }
+
+    .evidence-strip {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--rule-light);
+    }
+
+    .evidence-strip div {
+      min-height: 116px;
+      padding: 18px;
+      border-left: 1px solid var(--rule-light);
+    }
+
+    .evidence-strip div:first-child {
+      border-left: 0;
+    }
+
+    .evidence-strip strong {
+      display: block;
+      color: var(--text-dark);
+      font-size: 1.7rem;
+      letter-spacing: -0.05em;
+    }
+
+    .evidence-strip span {
+      color: var(--muted-dark);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+    }
+
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--rule);
+      border-left: 1px solid var(--rule);
+    }
+
+    .workflow-card {
+      min-height: 280px;
+      padding: clamp(24px, 3vw, 38px);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      background: var(--ink);
+      transition: background 160ms ease;
+    }
+
+    .workflow-card:hover {
+      background: var(--ink-raised);
+    }
+
+    .workflow-number {
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .workflow-card h3 {
+      margin: auto 0 14px;
+      font-size: clamp(1.4rem, 2.3vw, 2.05rem);
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .workflow-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--rule-light);
+      border-left: 1px solid var(--rule-light);
+    }
+
+    .model-card {
+      min-height: 245px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid var(--rule-light);
+      border-bottom: 1px solid var(--rule-light);
+      background: var(--paper);
+    }
+
+    .model-card.featured {
+      background: var(--paper-bright);
+      box-shadow: inset 0 4px 0 var(--signal-dark);
+    }
+
+    .model-card span {
+      color: #355500;
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .model-card p {
+      margin: 64px 0 0;
+      color: var(--muted-dark);
+      font-size: 0.96rem;
+    }
+
+    .platform-note,
+    .rough-transcript-note {
+      margin: 22px 0 0;
+      color: var(--muted-dark);
+      font-size: 0.92rem;
+    }
+
+    .rough-transcript-note {
+      padding: 16px 18px;
+      border-left: 3px solid var(--coral);
+      color: var(--text-dark);
+      background: rgba(255, 118, 87, 0.07);
+    }
+
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--rule-light);
+      border-left: 1px solid var(--rule-light);
+    }
+
+    .quality-card {
+      min-height: 300px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--rule-light);
+      border-bottom: 1px solid var(--rule-light);
+      background: var(--paper);
+    }
+
+    .quality-code {
+      color: #355500;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .quality-card h3 {
+      margin: auto 0 16px;
+      font-size: clamp(1.55rem, 2.2vw, 2.15rem);
+      letter-spacing: -0.05em;
+    }
+
+    .quality-card p {
+      margin: 0;
+      color: var(--muted-dark);
+      font-size: 0.92rem;
+    }
+
+    .install-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.75fr) minmax(0, 1.25fr);
+      gap: clamp(42px, 8vw, 130px);
+      align-items: start;
+    }
+
+    .install-copy h2 {
+      margin: 18px 0 0;
+      font-size: clamp(3rem, 5.7vw, 6rem);
+      line-height: 0.99;
+      letter-spacing: -0.06em;
+    }
+
+    .install-copy > p {
+      margin: 28px 0 0;
+      color: var(--muted-dark);
+      font-size: 1.08rem;
+    }
+
+    .install-steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: install;
+      border-top: 1px solid var(--rule-light);
+    }
+
+    .install-steps li {
+      padding: 24px 0;
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 16px;
+      border-bottom: 1px solid var(--rule-light);
+      counter-increment: install;
+    }
+
+    .install-steps li::before {
+      content: "0" counter(install);
+      color: #355500;
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .install-steps h3 {
+      margin: 0 0 7px;
+      font-size: 1.18rem;
+      letter-spacing: -0.025em;
+    }
+
+    .install-steps p {
+      margin: 0;
+      color: var(--muted-dark);
+    }
+
+    .prompt-box {
+      margin-top: 28px;
+      border: 1px solid var(--text-dark);
+      background: var(--paper-bright);
+    }
+
+    .prompt-label {
+      min-height: 42px;
+      padding: 9px 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--rule-light);
+      color: var(--muted-dark);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+    }
+
+    .prompt-box code {
+      padding: 20px;
+      display: block;
+      color: var(--text-dark);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .prompt-box .copy-button {
+      min-height: 34px;
+      padding: 7px 10px;
+      border-color: var(--text-dark);
+      color: var(--text-dark);
+    }
+
+    .install-actions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .install-actions .button {
+      border-color: var(--text-dark);
+      color: var(--text-dark);
+    }
+
+    .install-actions .button:hover {
+      color: var(--paper);
+      background: var(--text-dark);
+    }
+
+    .trust-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+      gap: clamp(44px, 8vw, 130px);
+    }
+
+    .trust-copy > p {
+      margin-top: 28px;
+    }
+
+    .trust-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: 1px solid var(--rule);
+      border-left: 1px solid var(--rule);
+    }
+
+    .trust-card {
+      min-height: 210px;
+      padding: 27px;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .trust-card span {
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .trust-card h3 {
+      margin: 50px 0 10px;
+      font-size: 1.42rem;
+      letter-spacing: -0.04em;
+    }
+
+    .trust-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .boundary-note {
+      margin-top: 24px;
+      padding: 16px 18px;
+      border-left: 3px solid var(--coral);
+      color: #d9dcd4;
+      background: rgba(255, 118, 87, 0.06);
+      font-size: 0.9rem;
+    }
+
+    .faq-list {
+      max-width: 1040px;
+      margin: 0 auto;
+      border-top: 1px solid var(--rule-light);
+    }
+
+    .faq-list details {
+      border-bottom: 1px solid var(--rule-light);
+    }
+
+    .faq-list summary {
+      padding: 24px 44px 24px 0;
+      position: relative;
+      cursor: pointer;
+      list-style: none;
+      font-size: clamp(1.08rem, 1.7vw, 1.35rem);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .faq-list summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .faq-list summary::after {
+      content: "+";
+      position: absolute;
+      top: 22px;
+      right: 4px;
+      color: #355500;
+      font-family: var(--mono);
+      font-size: 1.3rem;
+    }
+
+    .faq-list details[open] summary::after {
+      content: "−";
+    }
+
+    .faq-list details p {
+      max-width: 820px;
+      margin: 0;
+      padding: 0 44px 25px 0;
+      color: var(--muted-dark);
+    }
+
+    .closing {
+      min-height: 540px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .closing .micro-label {
+      color: #263710;
+    }
+
+    .closing h2 {
+      max-width: 1100px;
+      margin-top: 20px;
+      font-size: clamp(3.5rem, 7.3vw, 7.8rem);
+    }
+
+    .closing p {
+      max-width: 690px;
+      margin: 28px 0 0;
+      font-size: 1.12rem;
+    }
+
+    .closing-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .closing .button {
+      border-color: var(--ink);
+      color: var(--ink);
+    }
+
+    .closing .button-primary {
+      color: var(--signal);
+      background: var(--ink);
+    }
+
+    .closing .button:hover {
+      color: var(--signal);
+      background: var(--ink);
+    }
+
+    footer {
+      width: var(--page);
+      min-height: 108px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    footer p {
+      margin: 0;
+    }
+
+    footer a {
+      color: var(--signal);
+    }
+
+    @media (max-width: 1040px) {
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      .transcript-window {
+        max-width: 820px;
+      }
+
+      .proof-layout,
+      .install-layout,
+      .trust-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .proof-copy {
+        position: static;
+      }
+
+      .workflow-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .model-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quality-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      :root {
+        --page: calc(100vw - 32px);
+      }
+
+      .site-header {
+        min-height: 76px;
+      }
+
+      .site-header nav {
+        gap: 0;
+      }
+
+      .site-header nav a:not(.language-link) {
+        display: none;
+      }
+
+      .hero {
+        gap: 42px;
+      }
+
+      .hero-copy h1 {
+        font-size: clamp(3.1rem, 15vw, 5rem);
+      }
+
+      .hero-actions,
+      .closing-actions {
+        flex-direction: column;
+      }
+
+      .hero-actions .button,
+      .closing-actions .button {
+        width: 100%;
+      }
+
+      .transcript-window {
+        box-shadow: 10px 10px 0 rgba(200, 255, 90, 0.08);
+      }
+
+      .pipeline {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .speech {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .window-footer,
+      .sample-heading,
+      .compare-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .section-heading {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      .section-heading h2,
+      .proof-copy h2,
+      .trust-copy h2,
+      .install-copy h2 {
+        font-size: clamp(2.8rem, 13vw, 4.6rem);
+      }
+
+      #first-use-heading {
+        font-size: 2.55rem;
+      }
+
+      .transcript-body {
+        min-height: 390px;
+      }
+
+      .evidence-strip,
+      .workflow-grid,
+      .model-grid,
+      .quality-grid,
+      .trust-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .evidence-strip div {
+        min-height: 90px;
+        border-left: 0;
+        border-top: 1px solid var(--rule-light);
+      }
+
+      .evidence-strip div:first-child {
+        border-top: 0;
+      }
+
+      .workflow-card,
+      .quality-card {
+        min-height: 230px;
+      }
+
+      .closing {
+        min-height: 460px;
+      }
+
+      footer {
+        padding: 26px 0;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+
+  <header class="site-header">
+    <a class="brand" href="#main"><span class="brand-mark" aria-hidden="true"></span>podcast-trancript-public</a>
+    <nav aria-label="主导航">
+      <a href="#proof">看看效果</a>
+      <a href="#workflow">怎么处理</a>
+      <a href="#first-use">第一次使用</a>
+      <a href="#install">怎么安装</a>
+      <a href="#trust">文件去哪</a>
+      <a href="#faq">常见问题</a>
+      <a class="language-link" href="./index.html" lang="en">English</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero section-dark" aria-labelledby="hero-heading">
+      <div class="hero-copy">
+        <p class="eyebrow">播客转写 · 本地优先</p>
+        <h1 id="hero-heading">把一集播客，整理成一份好读的文字稿。</h1>
+        <p>给它音频、视频、节目链接，或者一份粗转录。它会整理人名、标点、说话人和段落，尽量保留原话，最后生成 Markdown 和网页。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="../podcast-trancript-public/SKILL.md">查看这个 skill <span aria-hidden="true">↓</span></a>
+          <a class="button button-ghost" href="#install">先看怎么用 <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="hero-note">适合访谈、圆桌和长视频</p>
+      </div>
+
+      <div class="transcript-window" aria-label="精校逐字稿示例">
+        <div class="window-bar">
+          <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          <span>transcript.md · 文字稿预览</span>
+        </div>
+        <div class="pipeline" aria-label="处理流程">
+          <span>收材料</span>
+          <span>核对</span>
+          <span class="active">整理</span>
+          <span>生成</span>
+        </div>
+        <div class="sample-block">
+          <div class="sample-heading">
+            <strong>## 完整文字稿</strong>
+            <span>第 4 段 / 共 4 段</span>
+          </div>
+          <div class="speech">
+            <div class="speaker">主持人</div>
+            <p>我总想更快做决定，可还是经常判断错，问题出在哪？</p>
+          </div>
+          <div class="speech">
+            <div class="speaker">嘉宾</div>
+            <p>速度会把原来的偏差一起放大。<mark>先问一句：什么新证据出现时，你会改变现在的判断？</mark></p>
+          </div>
+          <div class="speech">
+            <div class="speaker">主持人</div>
+            <p>明白了。先弄清楚判断会被什么改变，再考虑速度。</p>
+          </div>
+        </div>
+        <div class="window-footer">
+          <span><span class="pass">已检查</span> · 内容没有缩短</span>
+          <span>Markdown + HTML</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-paper" id="proof" aria-labelledby="proof-heading">
+      <div class="proof-layout">
+        <div class="proof-copy">
+          <p class="kicker">先看一小段</p>
+          <h2 id="proof-heading">同一段话，<br>整理前后差多少？</h2>
+          <p>先看机器转出来的版本，再切到整理后的版本。它会补标点、分段、核对人名，不会把内容缩成摘要。</p>
+          <ul class="preserved-list">
+            <li><span>观点与论据</span><b>保留</b></li>
+            <li><span>口语颗粒感</span><b>保留</b></li>
+            <li><span>ASR 噪音</span><b>修正</b></li>
+            <li><span>不确定身份</span><b>标注</b></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="compare-card">
+            <div class="compare-toolbar">
+              <span class="compare-status" data-transcript-status aria-live="polite">当前：精校后</span>
+              <button class="toggle-button" type="button" data-transcript-toggle aria-pressed="false">查看粗转录</button>
+            </div>
+            <pre class="transcript-body" data-transcript-body>**主持人**：我总想更快做决定，可还是经常判断错，问题出在哪？
+
+**嘉宾**：速度会把原来的偏差一起放大。**先问一句：什么新证据出现时，你会改变现在的判断？**</pre>
+            <p class="compare-note">这里只补了标点、说话人和段落，没有改写嘉宾的观点。</p>
+            <noscript><div class="no-script-sample">ASR 粗转录：
+主持人 我总想更快做决定可还是经常判断错问题出在哪
+
+speaker 2 速度会把原来的偏差一起放大先问一句什么新证据出现时你会改变现在的判断</div></noscript>
+          </div>
+
+          <div class="evidence-strip" aria-label="整理重点">
+            <div><strong>逐段</strong><span>核对内容</span></div>
+            <div><strong>原稿</strong><span>留着不动</span></div>
+            <div><strong>姓名</strong><span>查不到不猜</span></div>
+            <div><strong>输出</strong><span>Markdown + HTML</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-dark" id="workflow" aria-labelledby="workflow-heading">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">它会怎么做</p>
+          <h2 id="workflow-heading">你把材料交进来，<br>它按这六步处理。</h2>
+        </div>
+        <p>每一步都能回头核对。原始音频和粗转录会留着，名字查不到也不会硬猜。</p>
+      </div>
+
+      <div class="workflow-grid">
+        <article class="workflow-card">
+          <span class="workflow-number">01 / 收材料</span>
+          <h3>先确认材料</h3>
+          <p>链接、音频、视频或现成转录都可以。你只要说明要中文、英文还是双语。</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">02 / 存原稿</span>
+          <h3>单独保存这一期</h3>
+          <p>每期用一个文件夹，原始音频和粗转录留着，方便回头核对。</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">03 / 转文字</span>
+          <h3>转成文字</h3>
+          <p>先检查电脑，再把模型选择、下载大小和保存位置告诉你。你同意后才准备本地转写。</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">04 / 查名字</span>
+          <h3>查人名，切长稿</h3>
+          <p>从节目页核对嘉宾和术语，再用随 skill 提供的脚本无损切开长稿。</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">05 / 整理</span>
+          <h3>一段段整理</h3>
+          <p>补标点、分说话人、修明显错字。不会为了好看把观点删掉。</p>
+        </article>
+        <article class="workflow-card">
+          <span class="workflow-number">06 / 导出</span>
+          <h3>合并后再检查</h3>
+          <p>检查开头结尾、重复、漏段和格式，生成 Markdown 和 HTML。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-paper" aria-labelledby="quality-heading">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">它最在意什么</p>
+          <h2 id="quality-heading">好读，也得像原来<br>那个人在说话。</h2>
+        </div>
+        <p>口头表达可以整理，观点和语气要留下。拿不准的地方会标出来，交给你确认。</p>
+      </div>
+
+      <div class="quality-grid">
+        <article class="quality-card">
+          <span class="quality-code">01 · 不缺段</span>
+          <h3>不漏内容</h3>
+          <p>观点、例子和限定条件都要留下。摘要可以有，但不能顶替逐字稿。</p>
+        </article>
+        <article class="quality-card">
+          <span class="quality-code">02 · 不乱猜</span>
+          <h3>人名别猜</h3>
+          <p>能查到就核对，查不到就用中性标签，留给你确认。</p>
+        </article>
+        <article class="quality-card">
+          <span class="quality-code">03 · 像本人</span>
+          <h3>保留说话方式</h3>
+          <p>有用的停顿、幽默和口头习惯会保留，只清理明显的转写噪音。</p>
+        </article>
+        <article class="quality-card">
+          <span class="quality-code">04 · 能直接用</span>
+          <h3>文件拿来就能用</h3>
+          <p>最后给你 Markdown 和 HTML，也会检查漏段、重复和说话人格式。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-paper" id="first-use" aria-labelledby="first-use-heading">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">第一次处理音视频</p>
+          <h2 id="first-use-heading">先看准备方案，<br>再决定下不下载。</h2>
+        </div>
+        <p>它会先检查电脑，看看适合哪种转写方式。模型、大小和保存位置都会列清楚，得到你的同意才开始。</p>
+      </div>
+      <div class="model-grid">
+        <article class="model-card">
+          <span>small · 先跑起来</span>
+          <p>下载小、速度快。适合先试一集，或配置普通的电脑。人名、口音和嘈杂录音可能要多改几处。</p>
+        </article>
+        <article class="model-card featured">
+          <span>turbo · 比较均衡</span>
+          <p>新一些的 Apple Silicon Mac 会优先推荐这一档；合适的 Windows 显卡也可以用。</p>
+        </article>
+        <article class="model-card">
+          <span>large-v3 · 更看重效果</span>
+          <p>适合人名多、口音重或录音质量一般的内容。下载最大，也更吃时间和内存。</p>
+        </article>
+      </div>
+      <p class="platform-note">Apple Silicon Mac 使用 MLX Whisper；Intel Mac 和 Windows 使用 faster-whisper。</p>
+      <p class="rough-transcript-note">已经有粗转录？直接交给它就行，不用安装 Whisper，也不用下载模型。</p>
+    </section>
+
+    <section class="section-paper" id="install" aria-labelledby="install-heading">
+      <div class="install-layout">
+        <div class="install-copy">
+          <p class="kicker">怎么装</p>
+          <h2 id="install-heading">把这个 skill<br>装进 Codex。</h2>
+          <p>不用先研究命令。在 Codex 里调用 <code>$skill-installer</code>，把下面的仓库地址交给它。</p>
+          <div class="install-actions">
+            <a class="button" href="https://github.com/ZHUCH-520/podcast-trancript-public">打开 GitHub 仓库</a>
+            <a class="button" href="../podcast-trancript-public/SKILL.md">查看这个 skill</a>
+            <a class="button" href="../README.md">打开使用说明</a>
+          </div>
+        </div>
+
+        <div>
+          <ol class="install-steps">
+            <li>
+              <div><h3>下载 skill</h3><p>保留整个文件夹，里面的 SKILL.md 是主要文件。</p></div>
+            </li>
+            <li>
+              <div><h3>让 Codex 安装</h3><p>复制下面的安装句子，发给 Codex。</p></div>
+            </li>
+            <li>
+              <div><h3>发来一集节目</h3><p>贴节目链接，或选择本地音视频，再说清需要中文、英文还是双语。</p></div>
+            </li>
+          </ol>
+
+          <div class="prompt-box">
+            <div class="prompt-label">
+              <span>安装时复制这句</span>
+              <button class="copy-button" type="button" data-copy="用 $skill-installer 安装这个 skill：https://github.com/ZHUCH-520/podcast-trancript-public/tree/main/podcast-trancript-public">复制</button>
+            </div>
+            <code>用 $skill-installer 安装这个 skill：https://github.com/ZHUCH-520/podcast-trancript-public/tree/main/podcast-trancript-public</code>
+          </div>
+
+          <div class="prompt-box">
+            <div class="prompt-label">
+              <span>可以这样说</span>
+              <button class="copy-button" type="button" data-copy="用 $podcast-trancript-public 处理这集播客，输出中文 Markdown 和 HTML：&lt;节目链接&gt;">复制</button>
+            </div>
+            <code>用 $podcast-trancript-public 处理这集播客，输出中文 Markdown 和 HTML：&lt;节目链接&gt;</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-dark" id="trust" aria-labelledby="trust-heading">
+      <div class="trust-layout">
+        <div class="trust-copy">
+          <p class="kicker">你的文件会去哪</p>
+          <h2 id="trust-heading">默认留在本地。</h2>
+          <p>能在本地转就用本地工具。需要联网下载节目或核对人名时会先说明；如果音频要交给云端服务，也会先问你。</p>
+          <p class="boundary-note">付费墙、登录、DRM 或平台保护不会被绕过。遇到这些情况，你可以提供自己合法取得的音频或文稿。</p>
+        </div>
+
+        <div class="trust-grid">
+          <article class="trust-card">
+            <span>01</span>
+            <h3>音频默认不上传</h3>
+            <p>本地工具可用时就在本地处理。云端转写需要你明确同意。</p>
+          </article>
+          <article class="trust-card">
+            <span>02</span>
+            <h3>网页不会跟踪你</h3>
+            <p>页面没有分析脚本、追踪像素或外部字体。</p>
+          </article>
+          <article class="trust-card">
+            <span>03</span>
+            <h3>下载前先给你看</h3>
+            <p>模型档位、大小和保存位置会先列出来。没有同意，不会开始下载。</p>
+          </article>
+          <article class="trust-card">
+            <span>04</span>
+            <h3>生成后由你决定去哪</h3>
+            <p>Markdown 和 HTML 生成后就停下。要不要上传由你决定。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-paper" id="faq" aria-labelledby="faq-heading">
+      <div class="section-heading">
+        <div>
+          <p class="kicker">常见问题</p>
+          <h2 id="faq-heading">装之前，<br>可能还想问这些。</h2>
+        </div>
+        <p>模型怎么选、文件放哪里、认不认得说话人，都放在这里。</p>
+      </div>
+
+      <div class="faq-list">
+        <details>
+          <summary>音频会被上传吗？</summary>
+          <p>默认不会。本地转写工具可用时，音频留在本机。需要云端服务时，会先说明服务和要发送的数据。</p>
+        </details>
+        <details>
+          <summary>small 会不会影响转写效果？</summary>
+          <p>会有一些影响，尤其是人名、口音重或背景声多的时候。它的好处是下载小、速度快，适合先试一集；需要更稳时可以选 turbo 或 large-v3。</p>
+        </details>
+        <details>
+          <summary>模型保存在哪里？</summary>
+          <p>放在系统的用户缓存目录，不会放进节目文件夹或 skill 文件夹。下载前会显示具体位置。</p>
+        </details>
+        <details>
+          <summary>我已经有粗转录，还要下载模型吗？</summary>
+          <p>不用。它会保留粗稿，直接切成长段落继续核对和整理。</p>
+        </details>
+        <details>
+          <summary>它总能认出所有说话人吗？</summary>
+          <p>不能保证。节目页能确认名字时就写名字，确认不了就用 Speaker A 或说话人 A，留给你复核。</p>
+        </details>
+        <details>
+          <summary>它会绕过付费墙或受保护媒体吗？</summary>
+          <p>不会。遇到登录、付费、DRM 或平台保护时，它会停下来，请你提供合法取得的音频或文稿。</p>
+        </details>
+        <details>
+          <summary>完成后会自动发布吗？</summary>
+          <p>不会。它只生成本地 Markdown 和 HTML。是否上传，由你决定。</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="section-signal closing" aria-labelledby="closing-heading">
+      <p class="micro-label">现在就试一集</p>
+      <h2 id="closing-heading">找一集你一直没空<br>重听的播客。</h2>
+      <p>把链接或文件交给它。先看一小段整理效果，合适再继续。</p>
+      <div class="closing-actions">
+        <a class="button button-primary" href="../podcast-trancript-public/SKILL.md">查看这个 skill</a>
+        <a class="button" href="#install">查看安装方法</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>podcast-trancript-public · 把播客整理成文字稿的 Codex skill</p>
+    <p><a href="#main">返回顶部 ↑</a></p>
+  </footer>
+
+  <script>
+    const transcriptStates = {
+      raw: {
+        label: "查看精校后",
+        status: "当前：ASR 粗转录",
+        body: "主持人 我总想更快做决定可还是经常判断错问题出在哪\n\nspeaker 2 速度会把原来的偏差一起放大先问一句什么新证据出现时你会改变现在的判断",
+      },
+      polished: {
+        label: "查看粗转录",
+        status: "当前：精校后",
+        body: "**主持人**：我总想更快做决定，可还是经常判断错，问题出在哪？\n\n**嘉宾**：速度会把原来的偏差一起放大。**先问一句：什么新证据出现时，你会改变现在的判断？**",
+      },
+    };
+
+    const transcriptToggle = document.querySelector("[data-transcript-toggle]");
+    const transcriptStatus = document.querySelector("[data-transcript-status]");
+    const transcriptBody = document.querySelector("[data-transcript-body]");
+    let transcriptMode = "polished";
+
+    if (transcriptToggle && transcriptStatus && transcriptBody) {
+      transcriptToggle.addEventListener("click", () => {
+        transcriptMode = transcriptMode === "polished" ? "raw" : "polished";
+        const state = transcriptStates[transcriptMode];
+        transcriptBody.textContent = state.body;
+        transcriptStatus.textContent = state.status;
+        transcriptToggle.textContent = state.label;
+        transcriptToggle.setAttribute("aria-pressed", String(transcriptMode === "raw"));
+      });
+    }
+
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.getAttribute("data-copy") || "";
+        const original = button.textContent;
+        try {
+          await navigator.clipboard.writeText(value);
+          button.textContent = "已复制";
+          button.dataset.copied = "true";
+        } catch (error) {
+          button.textContent = "请手动复制";
+          button.dataset.copyFailed = "true";
+        }
+        window.setTimeout(() => {
+          button.textContent = original;
+          delete button.dataset.copied;
+          delete button.dataset.copyFailed;
+        }, 1600);
+      });
+    });
+  </script>
+</body>
+</html>
