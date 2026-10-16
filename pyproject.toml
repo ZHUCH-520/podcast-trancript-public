@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "podcast-transcript"
+version = "0.1.0"
+description = "Local command-line podcast transcription"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ZHUCH-520" }]
+keywords = ["podcast", "transcription", "whisper"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/ZHUCH-520/podcast-trancript-public"
+Repository = "https://github.com/ZHUCH-520/podcast-trancript-public"
+
+[project.scripts]
+podcast-transcript = "podcast_transcript.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["podcast_transcript"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"podcast-trancript-public/scripts" = "podcast_transcript/bundled_scripts"
