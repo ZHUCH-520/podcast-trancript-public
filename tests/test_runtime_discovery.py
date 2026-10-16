@@ -107,7 +107,10 @@ class RuntimeDiscoveryTest(unittest.TestCase):
                 self.assertGreater(model.download_bytes, 100_000_000)
                 self.assertIn("config.json", model.required_files)
         self.assertIn("mlx-whisper==0.4.3", package_requirements("mlx"))
-        self.assertIn("faster-whisper==1.2.1", package_requirements("faster"))
+        faster = package_requirements("faster")
+        self.assertIn("faster-whisper==1.2.1", faster)
+        self.assertIn("av>=11,<19", faster)
+        self.assertNotIn("av>=11,<19", package_requirements("mlx"))
 
     def test_doctor_report_is_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:

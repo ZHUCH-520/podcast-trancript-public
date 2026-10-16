@@ -84,7 +84,10 @@ def package_requirements(backend: str) -> list[str]:
     if backend == "mlx":
         return common + ["mlx-whisper==0.4.3"]
     if backend == "faster":
-        return common + ["faster-whisper==1.2.1"]
+        # faster-whisper 1.2.1 calls av.open(..., metadata_errors="ignore").
+        # PyAV 19 removed that argument and crashes at decode time. Releases
+        # through 18 still accept it, so the pin is wider than av<16.
+        return common + ["faster-whisper==1.2.1", "av>=11,<19"]
     raise ValueError(f"unsupported backend: {backend}")
 
 

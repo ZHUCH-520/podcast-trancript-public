@@ -37,7 +37,9 @@ podcast-transcript run episode.mp3 --output-dir ./episode --accept-download --la
 
 The first run prints the model plan and stops until `--accept-download` approves that download. Nothing is downloaded during `pipx install`.
 
-Chinese-English shows use `--language zh-en`. Chinese-only shows can use `--language zh`. Omit `--language` to let the model detect the language. Put names in a text file, one per line, and pass `--glossary names.txt`.
+Chinese-English shows use `--language zh-en`. Chinese-only shows can use `--language zh`. Omit `--language` to let the model detect the language. `zh` and `zh-en` also send a short prompt so English names are more likely to stay in Latin script. Put names in a text file, one per line, and pass `--glossary names.txt`.
+
+The raw `raw-transcript.txt` from this command is still mostly unpunctuated. A real Chinese episode can have punctuation on only a handful of lines. Punctuation, name corrections, and readable formatting come from the skill's proofreading step, not from Whisper.
 
 A Xiaoyuzhou episode page, an Apple Podcasts episode link, an RSS feed, or a direct media URL works in place of the local file. The command prints the resolved audio host before it downloads that file. A show page, a sign-in page, or a URL with embedded credentials is refused.
 
@@ -86,7 +88,15 @@ The command writes `raw-transcript.txt`, `segments.json`, and a simple `transcri
 
 ### Install the skill into an assistant
 
-The skill is the `podcast-trancript-public` folder (`SKILL.md` plus `scripts/`). Keep that folder name; it matches the skill name. The installer copies that folder and does not rewrite `SKILL.md`.
+The skill is a standard `SKILL.md` skill: one folder named `podcast-trancript-public`, with `SKILL.md` plus `scripts/`. Keep that folder name. Hosts and skill hubs that load this format should be able to run it. The installer copies that folder and does not rewrite `SKILL.md`.
+
+These are the hosts whose skill location or install method was checked. This is not a live test inside each product:
+
+- Codex, through the `$skill-installer` sentence above
+- Claude Code, Cursor, Qoder, Tongyi Lingma, CodeBuddy, TRAE, Qwen Code, and Kimi Code, through the directories below
+- WorkBuddy, by uploading the skill package. Prepare it with `podcast-transcript install-skill --target workbuddy --dest ./workbuddy-skill`. The official page does not name an on-disk directory, so that path is not guessed
+
+Other mainstream hosts that read a standard `SKILL.md` folder should work the same way. Hosts that were not checked, including CatPaw, are not listed as verified.
 
 ```bash
 podcast-transcript install-skill --list

@@ -181,7 +181,7 @@ For audio or video, run:
 python scripts/transcribe.py INPUT --output-dir JOB_DIRECTORY --language zh-en --glossary JOB_DIRECTORY/glossary.txt
 ```
 
-`--language` accepts `auto` (the default), `zh`, `en`, or `zh-en`. `zh-en` and `mixed` call the model with language `zh` and a short bilingual punctuation prompt, so English names stay in Latin script. `--initial-prompt` replaces that built-in prompt. `--glossary` is a UTF-8 file with one name or term per line; blank lines and `#` comments are ignored. faster-whisper receives those terms as hotwords. MLX Whisper appends them to the prompt because that pinned package has no hotwords argument.
+`--language` accepts `auto` (the default), `zh`, `en`, or `zh-en`. `zh-en` and `mixed` call the model with language `zh` and a short prompt that asks it to keep English names in Latin script. That prompt does not reliably add punctuation. Raw Whisper text is mostly unpunctuated; add punctuation, name fixes, and formatting in the proofreading step below. `--initial-prompt` replaces the built-in prompt. `--glossary` is a UTF-8 file with one name or term per line; blank lines and `#` comments are ignored. faster-whisper receives those terms as hotwords. MLX Whisper appends them to the prompt because that pinned package has no hotwords argument.
 
 Long audio uses voice-activity detection with padding so quiet edges are kept, and it does not condition each window on the previous text. Overlapping copies of the same words are collapsed. A later repetition, after the previous segment has ended, is kept. The script does not delete a segment just because a timestamp moved.
 

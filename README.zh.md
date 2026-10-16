@@ -36,9 +36,11 @@ podcast-transcript run episode.mp3 --output-dir ./episode --accept-download --la
 | 语言参数 | 行为 |
 |---|---|
 | 省略或 `auto` | 由模型判断语言 |
-| `zh` | 中文，并使用简短的中文标点提示 |
-| `en` | 英文 |
-| `zh-en` | 按中文识别，提示里保留英文专名和中文标点 |
+| `zh` | 按中文识别 |
+| `en` | 按英文识别 |
+| `zh-en` | 按中文识别，并提示模型保留英文专名 |
+
+`--language zh` 不会给原始转写自动补上中文标点。真实节目里，一千行里可能只有几行带标点，而且多半是英文逗号。标点、人名修正和分段排版来自 skill 的校对步骤，不是 Whisper 的原始输出。
 
 专名写在 UTF-8 文本里，一行一个，然后：
 
@@ -82,6 +84,14 @@ python podcast-trancript-public/scripts/resolve_media.py "https://www.xiaoyuzhou
 Apple Silicon 使用 MLX Whisper。Intel Mac、Windows 和 Linux 使用 faster-whisper。Windows 和 Linux 在检测到 CUDA 时使用 float16，否则使用 CPU 和 int8。`large-v3` 不会被自动选中。已有粗转录时可以跳过模型下载，直接校对文本。
 
 ## 安装到中文编程助手
+
+这是一份标准 `SKILL.md` skill：一个名为 `podcast-trancript-public` 的文件夹，里面是 `SKILL.md` 和 `scripts/`。能读取这种格式的助手和技能库应当可以使用它。下面列出的是已经核对过安装位置或安装方式的宿主，不是在每个产品里做过实机验收：
+
+- Codex：用英文说明里的 `$skill-installer`
+- Claude Code、Cursor、Qoder、通义灵码、CodeBuddy、TRAE、Qwen Code、Kimi Code：使用下面的目录
+- WorkBuddy：上传技能包。用 `podcast-transcript install-skill --target workbuddy --dest ./workbuddy-skill` 准备文件夹。官方页面没有写出磁盘目录，所以不会猜一个主目录路径
+
+其他能读取标准 `SKILL.md` 文件夹的主流宿主也应同样可用。没有核对成功的宿主，例如 CatPaw，不列入已核对名单。
 
 一条命令复制同一份 `SKILL.md` 和 `scripts/`，不改写说明文件：
 

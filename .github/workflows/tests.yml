@@ -21,3 +21,43 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+      - name: Resolve the faster-whisper runtime and reject PyAV 19
+        run: |
+          python -m pip install --upgrade pip
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "podcast-trancript-public/scripts")
+          from model_catalog import package_requirements
+          requirements = package_requirements("faster")
+          if "av>=11,<19" not in requirements:
+              raise SystemExit(f"faster runtime is missing the PyAV pin: {requirements}")
+          Path("/tmp/faster-reqs.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          PY
+          python -m pip install --dry-run --ignore-installed -r /tmp/faster-reqs.txt | tee /tmp/faster-dry-run.txt
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("/tmp/faster-dry-run.txt").read_text(encoding="utf-8")
+          selected = re.findall(r"\bav-(\d+)\.(\d+)(?:\.(\d+))?", text)
+          if not selected:
+              raise SystemExit("resolver did not select av:\n" + text)
+          for major, _minor, _patch in selected:
+              if int(major) < 11 or int(major) >= 19:
+                  raise SystemExit(f"incompatible av selection: {selected}\n{text}")
+          print("resolved av", selected)
+          PY
+          set +e
+          python -m pip install --dry-run --ignore-installed 'av==19.0.1' 'av>=11,<19' > /tmp/av19.txt 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "av 19.0.1 was accepted by the pin"
+            cat /tmp/av19.txt
+            exit 1
+          fi
+          if ! grep -Eq "ResolutionImpossible|conflicting dependencies|Cannot install" /tmp/av19.txt; then
+            echo "av 19 rejection was not a dependency conflict"
+            cat /tmp/av19.txt
+            exit 1
+          fi
