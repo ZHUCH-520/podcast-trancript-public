@@ -1,9 +1,10 @@
-"""Fetch a direct audio or video URL into an output directory."""
+"""Fetch a direct audio URL, or resolve a supported episode page or feed first."""
 
 from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlparse, urlunparse
@@ -73,12 +74,20 @@ def fetch_media(
     output_dir: Path,
     *,
     opener: Optional[Callable] = None,
+    direct_only: bool = False,
 ) -> Path:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise RuntimeError("only a direct http(s) audio or video URL is accepted")
-    if parsed.username or parsed.password:
-        raise RuntimeError("refusing a URL with embedded credentials")
+    _reject_unsafe_url(url)
+    resolver = _resolver()
+    kind = None if direct_only else resolver.classify_page(url)
+    if kind in {"xiaoyuzhou-episode", "apple-episode", "xiaoyuzhou-show", "apple-show"}:
+        resolved = resolver.resolve_page(url, opener=opener)
+        _log_resolution(resolved.kind, resolved.title, resolved.audio_url)
+        return fetch_media(
+            resolved.audio_url,
+            output_dir,
+            opener=opener,
+            direct_only=True,
+        )
     request = Request(url, headers={"User-Agent": "podcast-transcript"})
     open_url = opener or urlopen
     try:
@@ -86,29 +95,86 @@ def fetch_media(
     except OSError as exc:
         raise RuntimeError(f"could not fetch media: {display_url(url)}") from exc
     with response:
-        content_type = ""
-        headers = getattr(response, "headers", {}) or {}
-        if hasattr(headers, "get"):
-            content_type = headers.get("Content-Type") or headers.get("content-type") or ""
-        if not is_direct_media(url, str(content_type)):
+        content_type = _content_type(response)
+        if is_direct_media(url, content_type):
+            return _write_response(url, content_type, response, output_dir)
+        if direct_only:
             raise RuntimeError(
-                f"URL is not a direct audio or video file: {display_url(url)}"
+                f"resolved URL is not a direct audio or video file: {display_url(url)}"
             )
-        target = output_dir / media_filename(url, str(content_type))
-        if target.exists():
-            raise FileExistsError(f"refusing to overwrite: {target.name}")
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        handle = os.open(target, flags)
-        try:
-            with os.fdopen(handle, "wb") as stream:
-                while True:
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    stream.write(chunk)
-        except BaseException:
-            target.unlink(missing_ok=True)
-            raise
+        body = resolver.read_limited(response)
+        if resolver.looks_like_feed(content_type, body):
+            resolved = resolver.resolve_feed(body.decode("utf-8", errors="replace"))
+            _log_resolution(resolved.kind, resolved.title, resolved.audio_url)
+            return fetch_media(
+                resolved.audio_url,
+                output_dir,
+                opener=opener,
+                direct_only=True,
+            )
+        raise RuntimeError(
+            f"URL is not a direct audio or video file: {display_url(url)}"
+        )
+
+
+def _reject_unsafe_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise RuntimeError("only a public http(s) audio, episode, or feed URL is accepted")
+    if parsed.username or parsed.password:
+        raise RuntimeError("refusing a URL with embedded credentials")
+
+
+def _content_type(response) -> str:
+    headers = getattr(response, "headers", {}) or {}
+    if hasattr(headers, "get"):
+        return str(headers.get("Content-Type") or headers.get("content-type") or "")
+    return ""
+
+
+def _log_resolution(kind: str, title: str, audio_url: str) -> None:
+    clean_title = " ".join(title.split())
+    print(
+        f"Resolved {kind} episode {clean_title}: {display_url(audio_url)}",
+        file=sys.stderr,
+    )
+
+
+def _resolver():
+    directory = _scripts_dir()
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+    import resolve_media
+
+    return resolve_media
+
+
+def _scripts_dir() -> Path:
+    source = Path(__file__).resolve().parents[1] / "podcast-trancript-public" / "scripts"
+    if (source / "resolve_media.py").is_file():
+        return source
+    bundled = Path(__file__).resolve().parent / "bundled_scripts"
+    if (bundled / "resolve_media.py").is_file():
+        return bundled
+    raise RuntimeError("media resolver is not installed")
+
+
+def _write_response(url: str, content_type: str, response, output_dir: Path) -> Path:
+    target = output_dir / media_filename(url, content_type)
+    if target.exists():
+        raise FileExistsError(f"refusing to overwrite: {target.name}")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    handle = os.open(target, flags)
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                stream.write(chunk)
+    except BaseException:
+        target.unlink(missing_ok=True)
+        raise
     return target
 
 

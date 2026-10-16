@@ -1,6 +1,6 @@
 ---
 name: podcast-trancript-public
-description: Turn podcast audio, video, URLs, or rough transcripts into complete, readable Markdown and standalone HTML. Use when the user asks to transcribe, proofread, translate, or clean up a podcast or long-form conversation.
+description: Turn podcast audio, video, URLs, or rough transcripts into complete, readable Markdown and standalone HTML. Use when the user asks to transcribe, proofread, translate, or clean up a podcast or long-form conversation, including Chinese or Chinese-English shows and public episode pages.
 ---
 
 # podcast-trancript-public
@@ -14,7 +14,7 @@ This skill is local-first. It preserves the source material, verifies important 
 
 It includes scripts for checking the computer, preparing a local Whisper runtime after approval, transcribing without a cloud service, and splitting long transcripts without losing text. It does not bundle model files, downloaders, or cloud credits. It does not upload or publish anything unless the user separately asks for that action.
 
-The same folder can be copied into Claude Code (`~/.claude/skills/podcast-trancript-public/` or `.claude/skills/podcast-trancript-public/`) or Cursor (`~/.cursor/skills/podcast-trancript-public/`, `.cursor/skills/podcast-trancript-public/`, or `.agents/skills/podcast-trancript-public/`). Keep the folder name. A standalone `podcast-transcript run` command can write an unproofread `transcript.md` before this workflow starts. Do not treat that file as the proofread deliverable; keep following the steps below, and do not overwrite it unless the user explicitly asks.
+The same folder can be copied into Claude Code (`~/.claude/skills/podcast-trancript-public/` or `.claude/skills/podcast-trancript-public/`) or Cursor (`~/.cursor/skills/podcast-trancript-public/`, `.cursor/skills/podcast-trancript-public/`, or `.agents/skills/podcast-trancript-public/`). `podcast-transcript install-skill --target <tool>` copies this folder, without rewriting `SKILL.md`, into skill directories verified for Qoder, Qoder CN CLI, Tongyi Lingma, CodeBuddy, TRAE, TRAE CN, Qwen Code, and Kimi Code CLI. Keep the folder name. A standalone `podcast-transcript run` command can write an unproofread `transcript.md` before this workflow starts. Do not treat that file as the proofread deliverable; keep following the steps below, and do not overwrite it unless the user explicitly asks.
 
 ## What this skill does
 
@@ -62,7 +62,7 @@ Identify the input and the capabilities available in the current environment.
 | Existing transcript | Preserve it as the raw baseline, then begin entity verification and splitting. |
 | Local audio | Copy or reference it safely inside the isolated job; transcribe with an available ASR tool. |
 | Local video | Extract or transcribe its audio with an available media tool; preserve the video. |
-| Public media URL | Fetch only what is needed through an available lawful route, then transcribe. |
+| Public media URL | A direct audio or video URL, a Xiaoyuzhou episode page, an Apple Podcasts episode link, or an RSS/Atom feed. Resolve it, say the audio host, then transcribe. Show pages, sign-in pages, and paid or DRM media stop here. |
 | Resume request | Read the provided job state, verify its source identity, and continue from the first incomplete gate. |
 
 If the user supplies no input, ask for a URL, media file, transcript, or job directory. Do not scan unrelated folders to choose a target.
@@ -168,18 +168,22 @@ Apple Silicon uses MLX Whisper. Intel Mac, Windows, and Linux use faster-whisper
 
 - Local audio: preserve the original and work from a safe copy or read-only reference.
 - Local video: extract an audio stream into the job directory if the selected ASR tool cannot read video directly.
-- Public URL: save acquired media only inside the job directory and retain public title/source metadata.
+- Public URL: save acquired media only inside the job directory and retain public title/source metadata. `podcast-transcript run` accepts a direct media URL, `https://www.xiaoyuzhoufm.com/episode/<id>`, an Apple Podcasts episode URL that contains `i=<id>`, or an RSS/Atom feed. A feed uses the first item's enclosure and prints that title. A show page is refused. The command prints the resolved audio host before downloading the file. Model download still requires `--accept-download`. `python scripts/resolve_media.py URL` prints the audio URL for an episode page and does not download it.
 - Existing transcript: skip acquisition and ASR.
 
-If acquisition is blocked by authentication, protection, unsupported media, or ambiguous rights, stop and ask for a local file or transcript.
+If acquisition is blocked by authentication, protection, unsupported media, or ambiguous rights, stop and ask for a local file or transcript. Do not scrape an arbitrary website for a hidden media URL.
 
 #### Preserve the raw baseline
 
 For audio or video, run:
 
 ```text
-python scripts/transcribe.py INPUT --output-dir JOB_DIRECTORY
+python scripts/transcribe.py INPUT --output-dir JOB_DIRECTORY --language zh-en --glossary JOB_DIRECTORY/glossary.txt
 ```
+
+`--language` accepts `auto` (the default), `zh`, `en`, or `zh-en`. `zh-en` and `mixed` call the model with language `zh` and a short bilingual punctuation prompt, so English names stay in Latin script. `--initial-prompt` replaces that built-in prompt. `--glossary` is a UTF-8 file with one name or term per line; blank lines and `#` comments are ignored. faster-whisper receives those terms as hotwords. MLX Whisper appends them to the prompt because that pinned package has no hotwords argument.
+
+Long audio uses voice-activity detection with padding so quiet edges are kept, and it does not condition each window on the previous text. Overlapping copies of the same words are collapsed. A later repetition, after the previous segment has ended, is kept. The script does not delete a segment just because a timestamp moved.
 
 The script creates `raw-transcript.txt` and `segments.json` without overwriting existing files. Segment metadata is not proof of speaker identity. Do not claim diarization that the tool did not perform.
 
@@ -364,7 +368,7 @@ Do not summarize the English into a shorter Chinese paragraph.
 
 ### Mixed-language source
 
-Use the conversation's dominant language for punctuation and paragraphing. Preserve inline names and technical terms in their spoken language. A common translation may be added at first mention when it improves comprehension; do not repeat it mechanically.
+Use the conversation's dominant language for punctuation and paragraphing. For Chinese-English speech, transcribe with `--language zh-en` and put recurring names in the glossary file before proofreading. Preserve inline names and technical terms in their spoken language. A common translation may be added at first mention when it improves comprehension; do not repeat it mechanically.
 
 ## Executive Summary
 

@@ -230,6 +230,38 @@ class RunCommandTest(unittest.TestCase):
         self.assertIn("not installed", stderr.getvalue())
         self.assertIn("Hello.", (self.output / "transcript.md").read_text(encoding="utf-8"))
 
+    def test_run_forwards_mixed_language_prompt_and_glossary(self):
+        self._ready()
+        calls = []
+        glossary = self.root / "names.txt"
+        glossary.write_text("GPU\n", encoding="utf-8")
+        execute_run(
+            str(self.audio),
+            self.output,
+            language="zh-en",
+            initial_prompt="保留英文专名。",
+            glossary=glossary,
+            paths=self.paths,
+            facts=self.facts,
+            runner=self._runner(calls),
+        )
+        command = calls[0]
+        self.assertEqual(
+            [
+                "transcribe.py",
+                str(self.audio),
+                "--output-dir",
+                str(self.output),
+                "--language",
+                "zh-en",
+                "--initial-prompt",
+                "保留英文专名。",
+                "--glossary",
+                str(glossary),
+            ],
+            command,
+        )
+
     def test_diarize_apply_labels_markdown_when_install_is_approved(self):
         calls = []
         result = execute_run(
