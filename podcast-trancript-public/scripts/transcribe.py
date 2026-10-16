@@ -339,13 +339,13 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        return _main(args)
+        return _main(args, argv)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
 
-def _main(args: argparse.Namespace) -> int:
+def _main(args: argparse.Namespace, argv: Optional[list[str]]) -> int:
     paths = build_runtime_paths()
     state = _load_state(paths)
     python = runtime_python(paths)
