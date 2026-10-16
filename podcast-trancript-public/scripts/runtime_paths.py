@@ -18,6 +18,8 @@ class RuntimePaths:
     venv: Path
     models: Path
     state: Path
+    diarization_venv: Path
+    diarization_state: Path
 
 
 def build_runtime_paths(
@@ -45,13 +47,23 @@ def build_runtime_paths(
         venv=root / "venv",
         models=root / "models",
         state=root / "state.json",
+        diarization_venv=root / "diarization-venv",
+        diarization_state=root / "diarization.json",
     )
 
 
-def runtime_python(paths: RuntimePaths, system: Optional[str] = None) -> Path:
+def _venv_python(venv: Path, system: Optional[str] = None) -> Path:
     os_name = system or platform.system()
     relative = Path("Scripts") / "python.exe" if os_name == "Windows" else Path("bin") / "python"
-    return paths.venv / relative
+    return venv / relative
+
+
+def runtime_python(paths: RuntimePaths, system: Optional[str] = None) -> Path:
+    return _venv_python(paths.venv, system)
+
+
+def diarization_python(paths: RuntimePaths, system: Optional[str] = None) -> Path:
+    return _venv_python(paths.diarization_venv, system)
 
 
 def atomic_write_json(path: Path, payload: dict) -> None:

@@ -64,31 +64,90 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def transcript_from_segments(segments: list[dict]) -> str:
+    parts = []
+    for segment in segments:
+        text = str(segment.get("text", "")).strip()
+        if text:
+            parts.append(f"{text}\n")
+    return "".join(parts)
+
+
+def speakers_for_chunks(
+    text: str, chunks: list[str], segments: list[dict]
+) -> list[list[str]]:
+    if transcript_from_segments(segments) != text:
+        raise RuntimeError(
+            "segments do not match the transcript text; refusing to attach speaker labels"
+        )
+    spans = []
+    offset = 0
+    for segment in segments:
+        piece = str(segment.get("text", "")).strip()
+        if not piece:
+            continue
+        end = offset + len(piece) + 1
+        spans.append((offset, end, segment.get("speaker")))
+        offset = end
+    grouped = []
+    cursor = 0
+    for chunk in chunks:
+        start = cursor
+        end = cursor + len(chunk)
+        seen = []
+        for span_start, span_end, speaker in spans:
+            if not speaker or not (span_start < end and span_end > start):
+                continue
+            label = str(speaker)
+            if label not in seen:
+                seen.append(label)
+        grouped.append(seen)
+        cursor = end
+    return grouped
+
+
+def validate_speaker_names(
+    speaker_ids: list[str], mapping: dict[str, str]
+) -> dict[str, str]:
+    missing = [speaker for speaker in speaker_ids if speaker not in mapping]
+    if missing:
+        raise ValueError(f"speaker map is missing ids: {missing}")
+    normalized = {}
+    for speaker in speaker_ids:
+        name = str(mapping[speaker]).strip()
+        if not name:
+            raise ValueError(f"speaker map has an empty name for {speaker}")
+        normalized[speaker] = name
+    return normalized
+
+
 def manifest_for(
     source_name: str,
     text: str,
     chunks: list[str],
     limit: int,
     backup_name: Optional[str] = None,
+    speakers: Optional[list[list[str]]] = None,
 ) -> dict:
     items = []
     offset = 0
     for index, chunk in enumerate(chunks):
         end = offset + len(chunk)
-        items.append(
-            {
-                "index": index,
-                "file": f"chunk-{index:03d}.txt",
-                "start": offset,
-                "end": end,
-                "characters": len(chunk),
-                "sha256": sha256_text(chunk),
-                "head": chunk[:40],
-                "tail": chunk[-40:],
-            }
-        )
+        item = {
+            "index": index,
+            "file": f"chunk-{index:03d}.txt",
+            "start": offset,
+            "end": end,
+            "characters": len(chunk),
+            "sha256": sha256_text(chunk),
+            "head": chunk[:40],
+            "tail": chunk[-40:],
+        }
+        if speakers is not None:
+            item["speakers"] = list(speakers[index])
+        items.append(item)
         offset = end
-    return {
+    payload = {
         "format": 1,
         "source_name": source_name,
         "input_characters": len(text),
@@ -97,6 +156,14 @@ def manifest_for(
         "backup": backup_name,
         "chunks": items,
     }
+    if speakers is not None:
+        ordered = []
+        for group in speakers:
+            for speaker in group:
+                if speaker not in ordered:
+                    ordered.append(speaker)
+        payload["speaker_ids"] = ordered
+    return payload
 
 
 def _read_text(path: Path) -> str:
@@ -152,11 +219,23 @@ def _validate_paths(source: Path, output_dir: Path) -> tuple[Path, Path]:
     return source_path, output_path
 
 
+def _load_segments(path: Path) -> list[dict]:
+    try:
+        payload = json.loads(_read_text(path))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("segments file is not valid JSON") from exc
+    segments = payload.get("segments") if isinstance(payload, dict) else None
+    if not isinstance(segments, list):
+        raise RuntimeError("segments file is missing a segment list")
+    return segments
+
+
 def split_file(
     source: Path,
     output_dir: Path,
     limit: int = 4_500,
     replace: bool = False,
+    segments_path: Optional[Path] = None,
 ) -> dict:
     if limit < 1:
         raise ValueError("limit must be at least 1")
@@ -175,12 +254,16 @@ def split_file(
 
     text = _read_text(source_path)
     chunks = split_text(text, limit)
+    speakers = None
+    if segments_path is not None:
+        speakers = speakers_for_chunks(text, chunks, _load_segments(segments_path))
     manifest = manifest_for(
         source_path.name,
         text,
         chunks,
         limit,
         backup.name if backup else None,
+        speakers,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -232,6 +315,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--limit", type=_positive_int, default=4_500)
     parser.add_argument("--replace", action="store_true")
+    parser.add_argument(
+        "--segments",
+        type=Path,
+        help="Optional segments.json. Speaker IDs are copied into the manifest when they match the transcript.",
+    )
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
     manifest = split_file(
@@ -239,6 +327,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         args.output_dir,
         limit=args.limit,
         replace=args.replace,
+        segments_path=args.segments,
     )
     if args.as_json:
         print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))

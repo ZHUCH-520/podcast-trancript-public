@@ -113,6 +113,7 @@ Record a checklist in `job-state.md`:
 ```markdown
 - [ ] Source preserved
 - [ ] Raw transcript available
+- [ ] Diarization applied or explicitly skipped
 - [ ] Entities checked
 - [ ] Chunks created
 - [ ] Every chunk proofread
@@ -178,9 +179,32 @@ For audio or video, run:
 python scripts/transcribe.py INPUT --output-dir JOB_DIRECTORY
 ```
 
-The script creates `raw-transcript.txt` and `segments.json` without overwriting existing files. Segment metadata is not proof of speaker identity; do not claim diarization that the tool did not perform.
+The script creates `raw-transcript.txt` and `segments.json` without overwriting existing files. Segment metadata is not proof of speaker identity. Do not claim diarization that the tool did not perform.
 
 Save the untouched result as `raw-transcript.txt`. It is the completeness baseline. Do not clean it in place.
+
+#### Optional speaker diarization
+
+Diarization is off unless the user explicitly wants speaker IDs. It does not run as part of transcription, and a missing diarization runtime is not a failure. Continue with neutral labels.
+
+WhisperX is not the bundled path. The optional runtime is local pyannote.audio 3.3.2 with the pinned `speaker-diarization-3.1` pipeline, in its own virtual environment. pyannote 4 is not used. Apple Silicon and Intel Mac run it on CPU. Windows and Linux use CUDA only when the installed PyTorch build exposes it; otherwise the script logs a CPU fallback. The setup does not install FFmpeg, CUDA, or a system package manager.
+
+Show the read-only plan before any download:
+
+```text
+python scripts/diarize.py plan --json
+```
+
+Explain the packages, pinned models, download bytes, cache directory, and that two Hugging Face repos are gated. The user must accept those model conditions and provide `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` in the environment. Wait for a separate yes before installing. Do not infer it from the transcription request, and do not put the token in a command argument, `job-state.md`, `entity-hints.md`, or either deliverable.
+
+```text
+python scripts/diarize.py install --accept-download
+python scripts/diarize.py apply INPUT --segments JOB_DIRECTORY/segments.json
+```
+
+`apply` writes `speaker` on each segment as `SPEAKER_00`, `SPEAKER_01`, and so on. It does not change `raw-transcript.txt`. If diarization is not installed, or pyannote cannot be imported, `apply` leaves `segments.json` unchanged and returns `"status": "unavailable"`. Keep going.
+
+Those IDs are not names. Overlap and noise can merge or split people. Map each ID once in `entity-hints.md` and reuse that map in every chunk.
 
 ### 4. Verify entities and split
 
@@ -202,18 +226,22 @@ Write `entity-hints.md` without private machine or account metadata. A useful en
 | Heard or raw form | Verified form | Role or meaning | Evidence status |
 |---|---|---|---|
 | speaker 1 | Host | host | unresolved name |
+| SPEAKER_00 | Host | host | verified |
+| SPEAKER_01 | Speaker B | guest | unresolved name |
 | term from ASR | Canonical Term | technical concept | verified |
 ```
 
-Never convert an unresolved sound-alike into a confident name.
+Never convert an unresolved sound-alike, or a diarization ID, into a confident name. One ID keeps one label for the whole episode. If `speaker_ids` is empty or diarization was skipped, do not invent IDs.
 
 #### Split into bounded chunks
 
 Split long text before proofreading:
 
 ```text
-python scripts/split_transcript.py raw-transcript.txt --output-dir chunks --limit 4500 --json
+python scripts/split_transcript.py raw-transcript.txt --output-dir chunks --segments segments.json --limit 4500 --json
 ```
+
+Omit `--segments` when there is no `segments.json`. When it is present, the manifest gains `speaker_ids` and each chunk gains a `speakers` list in order of appearance. The chunk text itself stays a lossless copy of the raw transcript. If the segments do not match that text, the splitter stops instead of guessing labels.
 
 If `chunks/` is nonempty, stop and ask whether the user wants to keep it or explicitly rebuild with `--replace`. Never remove it manually.
 
@@ -233,7 +261,8 @@ Proofread every chunk under the quality rules below. This is transcript correcti
 
 When the runtime and user authorization allow parallel workers, independent chunks may be proofread in parallel. Each worker must:
 
-- read `entity-hints.md` and the quality rules first;
+- read `entity-hints.md`, the chunk's `speakers` list, and the quality rules first;
+- use the shared speaker-ID map and not rename an ID on its own;
 - write only its assigned proofread chunk;
 - preserve all meaningful speech;
 - avoid modifying job state, integrated output, or another worker's chunk.
@@ -244,7 +273,7 @@ A single coordinator owns:
 
 - the executive summary;
 - the first chunk;
-- final speaker-name consistency;
+- final speaker-name consistency, including one label per diarization ID;
 - natural-order integration;
 - boundary de-duplication;
 - validation and rendering.
@@ -291,6 +320,8 @@ Bold:
 Do not bold isolated buzzwords. A reader should be able to follow the main reasoning by reading the bold sentences, while the unbolded text still preserves the full conversation.
 
 ### P3 — Speaker and paragraph formatting
+
+When a chunk lists diarization IDs, replace each ID with the single verified or neutral label from `entity-hints.md`. Do not leave `SPEAKER_00` in the reader-facing transcript, and do not give the same ID two names.
 
 Use verified names when available:
 
@@ -416,7 +447,11 @@ Report whether the cause is unsupported media, authentication, protection, missi
 
 ### A speaker or entity cannot be verified
 
-Use a neutral label or conservative raw spelling. Add an `Unresolved Items` entry with the affected passage or term. Do not guess.
+Use a neutral label or conservative raw spelling. Add an `Unresolved Items` entry with the affected passage or term. Do not guess. Keep a diarization ID on that neutral label everywhere it appears.
+
+### Diarization is unavailable
+
+Continue without speaker IDs. Do not invent IDs to fill the gap. Ask before installing diarization. A missing token or a model gate blocks only that optional step.
 
 ### A chunk fails
 
@@ -438,6 +473,7 @@ Do not say the job is complete until fresh evidence supports every checked item:
 - [ ] Original source preserved
 - [ ] Raw transcript preserved
 - [ ] Public entities checked or uncertainties labeled
+- [ ] Speaker IDs mapped to one label each, or diarization explicitly skipped
 - [ ] Every chunk proofread and reviewed
 - [ ] Chunks integrated in numeric order
 - [ ] Boundaries checked for loss and duplication

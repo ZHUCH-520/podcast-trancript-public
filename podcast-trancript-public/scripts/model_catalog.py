@@ -86,3 +86,61 @@ def package_requirements(backend: str) -> list[str]:
     if backend == "faster":
         return common + ["faster-whisper==1.2.1"]
     raise ValueError(f"unsupported backend: {backend}")
+
+
+@dataclass(frozen=True)
+class DiarizationComponent:
+    role: str
+    directory_name: str
+    repo_id: str
+    revision: str
+    download_bytes: int
+    required_files: tuple[str, ...]
+
+
+# Pinned pyannote.audio 3.3.2 pipeline. Versions are the Hub revisions and the
+# public snapshot sizes (pipeline tree plus each model's usedStorage).
+DIARIZATION_COMPONENTS = (
+    DiarizationComponent(
+        "pipeline",
+        "pyannote-speaker-diarization-3.1",
+        "pyannote/speaker-diarization-3.1",
+        "84fd25912480287da0247647c3d2b4853cb3ee5d",
+        10_927_015,
+        ("config.yaml",),
+    ),
+    DiarizationComponent(
+        "segmentation",
+        "pyannote-segmentation-3.0",
+        "pyannote/segmentation-3.0",
+        "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+        5_905_440,
+        ("config.yaml", "pytorch_model.bin"),
+    ),
+    DiarizationComponent(
+        "embedding",
+        "pyannote-wespeaker-voxceleb-resnet34-LM",
+        "pyannote/wespeaker-voxceleb-resnet34-LM",
+        "837717ddb9ff5507820346191109dc79c958d614",
+        98_342_634,
+        ("config.yaml", "pytorch_model.bin"),
+    ),
+)
+
+DIARIZATION_PACKAGES = (
+    "torch==2.4.1",
+    "torchaudio==2.4.1",
+    "pyannote.audio==3.3.2",
+)
+
+GATED_DIARIZATION_REPOS = (
+    "pyannote/speaker-diarization-3.1",
+    "pyannote/segmentation-3.0",
+)
+
+
+def diarization_component(role: str) -> DiarizationComponent:
+    for component in DIARIZATION_COMPONENTS:
+        if component.role == role:
+            return component
+    raise ValueError(f"unsupported diarization component: {role}")
