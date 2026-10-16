@@ -156,8 +156,10 @@ Run only one of those commands. Do not infer approval from the original transcri
 | Profile | Choose it when | Trade-off |
 |---|---|---|
 | `small` | You want a quick first run or have a modest CPU/8 GB Mac | Smaller and faster, but names, accents, and noisy audio may need more correction. |
-| `turbo` | You have a modern Apple Silicon Mac or a capable Windows GPU | Best default balance for many long conversations. |
+| `turbo` | You have a modern Apple Silicon Mac, or a capable Windows or Linux GPU | Best default balance for many long conversations. |
 | `large-v3` | Accuracy matters more than time and storage | Largest download and slowest run; still requires name and speaker verification. |
+
+Apple Silicon uses MLX Whisper. Intel Mac, Windows, and Linux use faster-whisper. When CUDA is available, faster-whisper uses it with float16. If CUDA is missing or fails at runtime, it falls back to CPU with int8 and logs that choice.
 
 #### Acquire media safely
 

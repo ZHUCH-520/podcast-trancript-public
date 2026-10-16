@@ -84,6 +84,8 @@ class SetupTest(unittest.TestCase):
             state, json.loads(self.paths.state.read_text(encoding="utf-8"))
         )
         self.assertEqual("complete", state["status"])
+        self.assertEqual("cpu", state["device"])
+        self.assertEqual("float16", state["compute_type"])
         self.assertTrue(Path(state["model_path"]).is_dir())
 
     def test_failed_download_never_marks_installed(self):
@@ -135,6 +137,54 @@ class SetupTest(unittest.TestCase):
         self.assertTrue((self.paths.models / "mlx" / "small.partial").is_dir())
         self.assertFalse((self.paths.models / "mlx" / "small").exists())
         self.assertFalse(self.paths.state.exists())
+
+    def _install_faster(self, facts: MachineFacts):
+        def fake_command(argv, **kwargs):
+            if argv[1:4] == ["-m", "venv", str(self.paths.venv)]:
+                (self.paths.venv / "bin").mkdir(parents=True)
+                (self.paths.venv / "bin" / "python").write_text(
+                    "", encoding="utf-8"
+                )
+            return Mock(returncode=0)
+
+        def fake_download(**kwargs):
+            target = Path(kwargs["local_dir"])
+            target.mkdir(parents=True)
+            for name in (
+                "config.json",
+                "model.bin",
+                "tokenizer.json",
+                "vocabulary.txt",
+            ):
+                (target / name).write_bytes(b"model")
+            return str(target)
+
+        return runtime_setup.install_runtime(
+            self.paths,
+            facts,
+            profile="small",
+            backend="faster",
+            accepted=True,
+            run_command=fake_command,
+            download_snapshot=fake_download,
+            find_program=lambda name: None,
+        )
+
+    def test_faster_install_records_cuda_float16_when_available(self):
+        linux_gpu = MachineFacts(
+            "Linux", "x86_64", 32 * 1024**3, True, 12 * 1024**3, False, True
+        )
+        state = self._install_faster(linux_gpu)
+        self.assertEqual("cuda", state["device"])
+        self.assertEqual("float16", state["compute_type"])
+
+    def test_faster_install_records_cpu_int8_without_cuda(self):
+        linux_cpu = MachineFacts(
+            "Linux", "x86_64", 32 * 1024**3, False, None, False, True
+        )
+        state = self._install_faster(linux_cpu)
+        self.assertEqual("cpu", state["device"])
+        self.assertEqual("int8", state["compute_type"])
 
 
 if __name__ == "__main__":

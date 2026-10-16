@@ -63,6 +63,16 @@ def _validate_model_files(source: ModelSource, model_path: Path) -> None:
         raise RuntimeError(f"downloaded model is missing required files: {missing}")
 
 
+def _runtime_device(backend: str, facts: MachineFacts) -> tuple[str, str]:
+    if backend == "faster":
+        if facts.cuda_available:
+            return "cuda", "float16"
+        return "cpu", "int8"
+    if backend == "mlx":
+        return "cpu", "float16"
+    raise RuntimeError(f"unsupported backend: {backend}")
+
+
 def _validate_local_model(backend: str, model_path: Path) -> None:
     if backend == "mlx":
         from mlx_whisper.load_models import load_model
@@ -168,6 +178,7 @@ def install_runtime(
     _validate_backend_load(python, backend, model_partial, run_command)
     model_final.parent.mkdir(parents=True, exist_ok=True)
     os.replace(model_partial, model_final)
+    device, compute_type = _runtime_device(backend, facts)
     state = {
         "status": "complete",
         "backend": backend,
@@ -175,8 +186,8 @@ def install_runtime(
         "model": plan["model"],
         "revision": plan["revision"],
         "model_path": str(model_final),
-        "device": "cpu",
-        "compute_type": "int8" if backend == "faster" else "float16",
+        "device": device,
+        "compute_type": compute_type,
     }
     atomic_write_json(paths.state, state)
     return state

@@ -31,9 +31,9 @@ def recommend_profile(facts: MachineFacts) -> tuple[str, str]:
     if facts.system == "Darwin" and facts.machine.lower() in {"arm64", "aarch64"}:
         profile = "turbo" if (facts.memory_bytes or 0) >= 16 * 1024**3 else "small"
         return "mlx", profile
-    if facts.system in {"Darwin", "Windows"}:
+    if facts.system in {"Darwin", "Windows", "Linux"}:
         if (
-            facts.system == "Windows"
+            facts.system in {"Windows", "Linux"}
             and facts.cuda_available
             and (facts.cuda_memory_bytes or 0) >= 8 * 1024**3
         ):
@@ -103,7 +103,27 @@ def _windows_memory_bytes() -> Optional[int]:
         return None
 
 
-def _windows_cuda() -> tuple[bool, Optional[int]]:
+def _memory_bytes_from_meminfo(text: str) -> Optional[int]:
+    for line in text.splitlines():
+        if not line.startswith("MemTotal:"):
+            continue
+        parts = line.split()
+        try:
+            return int(parts[1]) * 1024
+        except (IndexError, ValueError):
+            return None
+    return None
+
+
+def _linux_memory_bytes() -> Optional[int]:
+    try:
+        text = Path("/proc/meminfo").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return _memory_bytes_from_meminfo(text)
+
+
+def _cuda_from_nvidia_smi() -> tuple[bool, Optional[int]]:
     if not shutil.which("nvidia-smi"):
         return False, None
     try:
@@ -138,7 +158,10 @@ def collect_machine_facts() -> MachineFacts:
         memory = _mac_memory_bytes()
     elif system == "Windows":
         memory = _windows_memory_bytes()
-        cuda_available, cuda_memory = _windows_cuda()
+        cuda_available, cuda_memory = _cuda_from_nvidia_smi()
+    elif system == "Linux":
+        memory = _linux_memory_bytes()
+        cuda_available, cuda_memory = _cuda_from_nvidia_smi()
     return MachineFacts(
         system=system,
         machine=platform.machine(),

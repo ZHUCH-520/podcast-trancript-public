@@ -47,10 +47,10 @@ You do not need to set up Whisper in advance. When the skill receives audio or v
 | Model | Best for | Tradeoff |
 |---|---|---|
 | `small` | Trying one episode or using modest hardware | Small and fast; names, accents, and noisy audio may need more correction |
-| `turbo` | A newer Apple Silicon Mac or Windows with a suitable GPU | A good balance of speed and accuracy |
+| `turbo` | A newer Apple Silicon Mac, or Windows or Linux with a suitable GPU | A good balance of speed and accuracy |
 | `large-v3` | Name-heavy shows, strong accents, or uneven recordings | The largest download, with higher memory and processing needs |
 
-Apple Silicon Mac uses MLX Whisper. Intel Mac and Windows use faster-whisper. Models are stored in your operating system's user cache, not inside the skill folder.
+Apple Silicon Mac uses MLX Whisper. Intel Mac, Windows, and Linux use faster-whisper. On Windows and Linux, CUDA with float16 is used when it is available; otherwise faster-whisper runs on CPU with int8. Models are stored in your operating system's user cache, not inside the skill folder.
 
 Already have a rough transcript? Skip Whisper and the model download—the skill goes straight to checking and editing the text.
 
@@ -120,3 +120,7 @@ Generated transcripts do not include usernames, email addresses, local computer 
 - `README.md`: installation and usage guidance
 - [`index.html`](./docs/index.html): the English GitHub Pages introduction
 - [`zh.html`](./docs/zh.html): the Chinese GitHub Pages introduction
+
+## License
+
+MIT License. Copyright (c) 2026 ZHUCH-520.

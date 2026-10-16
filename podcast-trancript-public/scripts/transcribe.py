@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 from typing import Callable, Optional
+
+
+logger = logging.getLogger(__name__)
 
 from runtime_paths import (
     RuntimePaths,
@@ -112,7 +116,7 @@ def run_faster(
             str(audio),
             language=language,
             word_timestamps=True,
-            vad_filter=False,
+            vad_filter=True,
         )
         items = [
             {"start": item.start, "end": item.end, "text": item.text}
@@ -122,9 +126,13 @@ def run_faster(
 
     try:
         return execute(device, compute_type)
-    except RuntimeError:
+    except RuntimeError as exc:
         if device != "cuda":
             raise
+        logger.warning(
+            "faster-whisper CUDA inference failed (%s); falling back to CPU with int8",
+            exc,
+        )
         return execute("cpu", "int8")
 
 

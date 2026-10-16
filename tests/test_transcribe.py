@@ -119,9 +119,10 @@ class TranscribeTest(unittest.TestCase):
         with patch.dict(sys.modules, {"faster_whisper": fake_module}):
             from transcribe import run_faster
 
-            language, segments = run_faster(
-                self.audio, self.model, "cuda", "float16", None
-            )
+            with self.assertLogs("transcribe", level="WARNING") as captured:
+                language, segments = run_faster(
+                    self.audio, self.model, "cuda", "float16", None
+                )
         self.assertEqual("en", language)
         self.assertEqual([], segments)
         self.assertEqual(
@@ -131,6 +132,40 @@ class TranscribeTest(unittest.TestCase):
             ],
             calls,
         )
+        self.assertTrue(
+            any("CPU" in line and "int8" in line for line in captured.output)
+        )
+
+    def test_faster_whisper_enables_vad_filter(self):
+        seen = {}
+
+        class FakeInfo:
+            language = "en"
+
+        class FakeSegment:
+            start = 0.0
+            end = 1.0
+            text = "Hello."
+
+        class FakeModel:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def transcribe(self, *args, **kwargs):
+                seen.update(kwargs)
+                return iter([FakeSegment()]), FakeInfo()
+
+        fake_module = type("M", (), {"WhisperModel": FakeModel})
+        with patch.dict(sys.modules, {"faster_whisper": fake_module}):
+            from transcribe import run_faster
+
+            language, segments = run_faster(
+                self.audio, self.model, "cpu", "int8", None
+            )
+        self.assertEqual("en", language)
+        self.assertEqual("Hello.", segments[0]["text"])
+        self.assertTrue(seen["vad_filter"])
+        self.assertTrue(seen["word_timestamps"])
 
 
 if __name__ == "__main__":
