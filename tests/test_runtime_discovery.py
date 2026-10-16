@@ -47,9 +47,57 @@ class RuntimeDiscoveryTest(unittest.TestCase):
         windows_gpu = MachineFacts(
             "Windows", "AMD64", 32 * 1024**3, True, 10 * 1024**3, False, True
         )
+        linux_cpu = MachineFacts(
+            "Linux", "x86_64", 32 * 1024**3, False, None, True, True
+        )
+        linux_gpu = MachineFacts(
+            "Linux", "x86_64", 16 * 1024**3, True, 8 * 1024**3, True, True
+        )
+        linux_small_gpu = MachineFacts(
+            "Linux", "x86_64", 64 * 1024**3, True, 4 * 1024**3, True, True
+        )
         self.assertEqual(("mlx", "turbo"), recommend_profile(apple))
         self.assertEqual(("faster", "small"), recommend_profile(windows_cpu))
         self.assertEqual(("faster", "turbo"), recommend_profile(windows_gpu))
+        self.assertEqual(("faster", "small"), recommend_profile(linux_cpu))
+        self.assertEqual(("faster", "turbo"), recommend_profile(linux_gpu))
+        self.assertEqual(("faster", "small"), recommend_profile(linux_small_gpu))
+
+    def test_other_platforms_remain_unsupported(self):
+        freebsd = MachineFacts(
+            "FreeBSD", "amd64", None, False, None, False, True
+        )
+        with self.assertRaisesRegex(RuntimeError, "unsupported platform"):
+            recommend_profile(freebsd)
+
+    def test_linux_cache_uses_xdg_or_home_cache(self):
+        home = Path("/var/example-home")
+        paths = build_runtime_paths(system="Linux", home=home, environ={})
+        self.assertEqual(home / ".cache" / "podcast-trancript-public", paths.root)
+        override = build_runtime_paths(
+            system="Linux",
+            home=home,
+            environ={"XDG_CACHE_HOME": "/var/xdg-cache"},
+        )
+        self.assertEqual(
+            Path("/var/xdg-cache/podcast-trancript-public"), override.root
+        )
+
+    def test_linux_meminfo_parser_and_reader(self):
+        from doctor import _linux_memory_bytes, _memory_bytes_from_meminfo
+
+        self.assertEqual(
+            16 * 1024**3,
+            _memory_bytes_from_meminfo("MemTotal:       16777216 kB\n"),
+        )
+        self.assertIsNone(_memory_bytes_from_meminfo("MemFree: 1 kB\n"))
+        self.assertIsNone(_memory_bytes_from_meminfo("MemTotal: nope kB\n"))
+        value = _linux_memory_bytes()
+        if Path("/proc/meminfo").is_file():
+            self.assertIsInstance(value, int)
+            self.assertGreater(value, 0)
+        else:
+            self.assertIsNone(value)
 
     def test_catalog_is_pinned_and_complete(self):
         self.assertEqual({"small", "turbo", "large-v3"}, set(MODEL_PROFILES))
