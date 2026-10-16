@@ -4,12 +4,33 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Callable, Optional
 
 
 logger = logging.getLogger(__name__)
+
+# Chinese punctuation prompts are short on purpose. They steer the first window
+# without pasting a transcript the model might echo.
+ZH_INITIAL_PROMPT = "以下是中文播客，请使用中文标点。"
+MIXED_INITIAL_PROMPT = "以下是普通话与英语夹杂的播客。中文使用中文标点，英文专名保留原文。"
+LANGUAGE_CHOICES = {
+    "auto": ("auto", None),
+    "detect": ("auto", None),
+    "zh": ("zh", "zh"),
+    "zh-cn": ("zh", "zh"),
+    "zh-hans": ("zh", "zh"),
+    "chinese": ("zh", "zh"),
+    "cmn": ("zh", "zh"),
+    "en": ("en", "en"),
+    "english": ("en", "en"),
+    "zh-en": ("mixed", "zh"),
+    "en-zh": ("mixed", "zh"),
+    "mixed": ("mixed", "zh"),
+    "bilingual": ("mixed", "zh"),
+}
 
 from runtime_paths import (
     RuntimePaths,
@@ -20,6 +41,90 @@ from runtime_paths import (
 )
 
 
+def resolve_language(value: Optional[str]) -> tuple[str, Optional[str]]:
+    if value is None or not str(value).strip():
+        return "auto", None
+    key = str(value).strip().lower().replace("_", "-")
+    if key in LANGUAGE_CHOICES:
+        return LANGUAGE_CHOICES[key]
+    if re.fullmatch(r"[a-z]{2}", key):
+        return key, key
+    raise ValueError(f"unsupported language: {value}")
+
+
+def default_initial_prompt(mode: str) -> Optional[str]:
+    if mode == "zh":
+        return ZH_INITIAL_PROMPT
+    if mode == "mixed":
+        return MIXED_INITIAL_PROMPT
+    return None
+
+
+def load_glossary(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    terms = []
+    for raw in text.splitlines():
+        term = raw.strip()
+        if not term or term.startswith("#"):
+            continue
+        if len(term) > 40:
+            raise ValueError("glossary term is longer than 40 characters")
+        terms.append(term)
+    if not terms:
+        raise ValueError("glossary file has no terms")
+    if len(terms) > 100:
+        raise ValueError("glossary has more than 100 terms")
+    joined = ", ".join(terms)
+    if len(joined) > 800:
+        raise ValueError("glossary text is longer than 800 characters")
+    return joined
+
+
+def stabilize_segments(segments: list[dict]) -> list[dict]:
+    """Keep every distinct span, and collapse only overlapping identical text.
+
+    Long-audio loops repeat the same words on a timestamp range that overlaps
+    the previous segment. A later repeat, after the previous segment has ended,
+    is real speech and stays.
+    """
+    prepared = []
+    for item in segments:
+        text = str(item.get("text", "")).strip()
+        if not text:
+            continue
+        start = float(item["start"])
+        end = float(item["end"])
+        if start < 0:
+            start = 0.0
+        if end < start:
+            end = start
+        prepared.append({"start": start, "end": end, "text": text})
+    prepared.sort(key=lambda item: (item["start"], item["end"], item["text"]))
+    kept: list[dict] = []
+    removed = 0
+    for item in prepared:
+        if kept:
+            previous = kept[-1]
+            same_text = _same_text(previous["text"], item["text"])
+            overlaps = item["start"] < previous["end"]
+            if same_text and overlaps:
+                if item["end"] <= previous["end"] + 30:
+                    previous["end"] = max(previous["end"], item["end"])
+                removed += 1
+                continue
+        kept.append(item)
+    if removed:
+        logger.warning(
+            "collapsed %s duplicated overlapping segment(s); later repeats were kept",
+            removed,
+        )
+    return kept
+
+
+def _same_text(left: str, right: str) -> bool:
+    return " ".join(left.split()) == " ".join(right.split())
+
+
 def transcribe_audio(
     audio_path: Path,
     raw_output: Path,
@@ -27,6 +132,8 @@ def transcribe_audio(
     state: dict,
     *,
     language: Optional[str] = None,
+    initial_prompt: Optional[str] = None,
+    hotwords: Optional[str] = None,
     mlx_runner: Optional[Callable] = None,
     faster_runner: Optional[Callable] = None,
 ) -> dict:
@@ -40,10 +147,23 @@ def transcribe_audio(
     if not model_path.is_dir():
         raise FileNotFoundError(model_path)
 
+    mode, whisper_language = resolve_language(language)
+    prompt = (initial_prompt or "").strip() or default_initial_prompt(mode)
+    if mode == "mixed":
+        logger.warning(
+            "language %s is transcribed as zh with a bilingual punctuation prompt",
+            language,
+        )
     backend = state["backend"]
     if backend == "mlx":
         runner = mlx_runner or run_mlx
-        detected, segments = runner(audio_path, model_path, language)
+        detected, segments = runner(
+            audio_path,
+            model_path,
+            whisper_language,
+            initial_prompt=prompt,
+            hotwords=hotwords,
+        )
     elif backend == "faster":
         runner = faster_runner or run_faster
         detected, segments = runner(
@@ -51,20 +171,14 @@ def transcribe_audio(
             model_path,
             state.get("device", "cpu"),
             state.get("compute_type", "int8"),
-            language,
+            whisper_language,
+            initial_prompt=prompt,
+            hotwords=hotwords,
         )
     else:
         raise RuntimeError(f"unsupported installed backend: {backend}")
 
-    normalized = [
-        {
-            "start": float(item["start"]),
-            "end": float(item["end"]),
-            "text": str(item["text"]).strip(),
-        }
-        for item in segments
-        if str(item.get("text", "")).strip()
-    ]
+    normalized = stabilize_segments(segments)
     text = "".join(f"{item['text']}\n" for item in normalized)
     payload = {"language": detected, "segments": normalized}
     atomic_write_text(raw_output, text)
@@ -76,12 +190,28 @@ def transcribe_audio(
     return payload
 
 
-def run_mlx(audio: Path, model: Path, language: Optional[str]):
+def run_mlx(
+    audio: Path,
+    model: Path,
+    language: Optional[str],
+    *,
+    initial_prompt: Optional[str] = None,
+    hotwords: Optional[str] = None,
+):
     import mlx_whisper
 
-    kwargs = {"word_timestamps": True}
+    prompt = (initial_prompt or "").strip()
+    if hotwords:
+        # mlx-whisper 0.4.3 has no hotwords argument. Keep the glossary in the prompt.
+        prompt = "\n".join(part for part in (prompt, f"专名：{hotwords}") if part)
+    kwargs = {
+        "word_timestamps": True,
+        "condition_on_previous_text": False,
+    }
     if language:
         kwargs["language"] = language
+    if prompt:
+        kwargs["initial_prompt"] = prompt
     result = mlx_whisper.transcribe(
         str(audio), path_or_hf_repo=str(model), **kwargs
     )
@@ -102,6 +232,9 @@ def run_faster(
     device: str,
     compute_type: str,
     language: Optional[str],
+    *,
+    initial_prompt: Optional[str] = None,
+    hotwords: Optional[str] = None,
 ):
     from faster_whisper import WhisperModel
 
@@ -112,12 +245,26 @@ def run_faster(
             compute_type=selected_compute,
             local_files_only=True,
         )
-        stream, info = instance.transcribe(
-            str(audio),
-            language=language,
-            word_timestamps=True,
-            vad_filter=True,
-        )
+        options = {
+            "language": language,
+            "word_timestamps": True,
+            "vad_filter": True,
+            # A lower threshold and speech padding keep quiet edges. Long pauses
+            # still split, and condition_on_previous_text is off so a loop cannot
+            # reprint the previous sentence across the next window.
+            "vad_parameters": {
+                "threshold": 0.3,
+                "min_speech_duration_ms": 0,
+                "min_silence_duration_ms": 500,
+                "speech_pad_ms": 400,
+            },
+            "condition_on_previous_text": False,
+        }
+        if initial_prompt:
+            options["initial_prompt"] = initial_prompt
+        if hotwords:
+            options["hotwords"] = hotwords
+        stream, info = instance.transcribe(str(audio), **options)
         items = [
             {"start": item.start, "end": item.end, "text": item.text}
             for item in stream
@@ -170,7 +317,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("input", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--language")
+    parser.add_argument(
+        "--language",
+        help="auto, zh, en, or zh-en. zh-en uses Chinese punctuation and keeps English names.",
+    )
+    parser.add_argument(
+        "--initial-prompt",
+        help="Optional first-window prompt. Replaces the built-in Chinese or bilingual prompt.",
+    )
+    parser.add_argument(
+        "--glossary",
+        type=Path,
+        help="UTF-8 file of names and terms, one per line. Passed as hotwords.",
+    )
     parser.add_argument(
         "--inside-runtime", action="store_true", help=argparse.SUPPRESS
     )
@@ -179,6 +338,14 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
+    try:
+        return _main(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
+def _main(args: argparse.Namespace) -> int:
     paths = build_runtime_paths()
     state = _load_state(paths)
     python = runtime_python(paths)
@@ -198,12 +365,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             )
 
     output_dir = _validate_output_directory(args.output_dir, paths)
+    hotwords = load_glossary(args.glossary.expanduser()) if args.glossary else None
     payload = transcribe_audio(
         args.input.expanduser().resolve(),
         output_dir / "raw-transcript.txt",
         output_dir / "segments.json",
         state,
         language=args.language,
+        initial_prompt=args.initial_prompt,
+        hotwords=hotwords,
     )
     print(
         json.dumps(

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "podcast-transcript"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local command-line podcast transcription"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -31,3 +31,5 @@ packages = ["podcast_transcript"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "podcast-trancript-public/scripts" = "podcast_transcript/bundled_scripts"
+"podcast-trancript-public/SKILL.md" = "podcast_transcript/skill_template/SKILL.md"
+"podcast-trancript-public/agents/openai.yaml" = "podcast_transcript/skill_template/agents/openai.yaml"

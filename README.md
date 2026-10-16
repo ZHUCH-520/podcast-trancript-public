@@ -4,7 +4,42 @@ Turn podcast audio, video, episode links, or rough transcripts into clean, reada
 
 The skill fixes punctuation and paragraph breaks, checks names and speaker labels, and keeps the substance of the conversation intact. It produces Markdown for editing and HTML for reading or sharing.
 
-[View the installable skill](./podcast-trancript-public/SKILL.md) · [English introduction](./docs/index.html) · [中文介绍](./docs/zh.html)
+[View the installable skill](./podcast-trancript-public/SKILL.md) · [English introduction](./docs/index.html) · [中文介绍](./docs/zh.html) · [中文说明](./README.zh.md)
+
+## Sample transcript
+
+This block is a **sample** written for the documentation. It is not a real episode and not model output.
+
+```markdown
+# 周末实验室 · 第 12 期
+
+## Summary
+
+Host 林夏 and guest 周衡 talk about Chinese-English podcasts. Product names stay in English. The Chinese argument stays complete.
+
+## Full transcript
+
+**林夏**: 欢迎来到周末实验室。今天我们聊 Whisper 在中英混说里怎么加标点。
+
+**周衡**: faster-whisper 会把 GPU 留成英文，但同一句不该在下一分钟再印一遍。
+
+**林夏**: 所以长音频先切开静音，专名放进 glossary，再逐段校对。
+```
+
+The command-line tool writes a simpler raw `transcript.md` from `segments.json`. The sample above is the proofread shape the skill aims for.
+
+## Quickstart
+
+```bash
+pipx install "git+https://github.com/ZHUCH-520/podcast-trancript-public.git"
+podcast-transcript run episode.mp3 --output-dir ./episode --accept-download --language zh-en
+```
+
+The first run prints the model plan and stops until `--accept-download` approves that download. Nothing is downloaded during `pipx install`.
+
+Chinese-English shows use `--language zh-en`. Chinese-only shows can use `--language zh`. Omit `--language` to let the model detect the language. Put names in a text file, one per line, and pass `--glossary names.txt`.
+
+A Xiaoyuzhou episode page, an Apple Podcasts episode link, an RSS feed, or a direct media URL works in place of the local file. The command prints the resolved audio host before it downloads that file. A show page, a sign-in page, or a URL with embedded credentials is refused.
 
 ## What it works well with
 
@@ -37,19 +72,7 @@ If you already have a rough transcript, send the text directly. Speech recogniti
 
 ## Use it without Codex
 
-Install the command-line tool with pipx. The package does not download a model during installation:
-
-```bash
-pipx install "git+https://github.com/ZHUCH-520/podcast-trancript-public.git"
-```
-
-One command transcribes a local audio or video file. The first run prints the setup plan and stops until you approve the download:
-
-```bash
-podcast-transcript run episode.mp3 --output-dir ./episode --accept-download
-```
-
-A direct media URL works the same way. A show page, sign-in link, or URL with embedded credentials is refused.
+One command transcribes a local file or a supported URL:
 
 ```bash
 podcast-transcript run https://example.com/episode.mp3 --output-dir ./episode --accept-download --diarize --captions both
@@ -61,15 +84,38 @@ The command writes `raw-transcript.txt`, `segments.json`, and a simple `transcri
 
 `podcast-transcript doctor`, `plan`, `setup`, `split`, and `diarize` call the same scripts as the skill. `podcast-transcript export segments.json --format srt --output captions.srt` renders captions from an existing segment file.
 
-### Claude Code and Cursor
+### Install the skill into an assistant
 
-The skill is the `podcast-trancript-public` folder (`SKILL.md` plus `scripts/`). Keep that folder name; it matches the skill name.
+The skill is the `podcast-trancript-public` folder (`SKILL.md` plus `scripts/`). Keep that folder name; it matches the skill name. The installer copies that folder and does not rewrite `SKILL.md`.
 
-- Codex: use the `$skill-installer` sentence above.
-- Claude Code: copy the folder to `~/.claude/skills/podcast-trancript-public/` for every project, or to `.claude/skills/podcast-trancript-public/` inside one project.
-- Cursor: copy it to `~/.cursor/skills/podcast-trancript-public/` or `.cursor/skills/podcast-trancript-public/`. Cursor also reads `.agents/skills/` in the same layout.
+```bash
+podcast-transcript install-skill --list
+podcast-transcript install-skill --target qoder
+podcast-transcript install-skill --target trae-cn --scope project
+```
 
-Copy the folder rather than rewriting `SKILL.md`. The scripts must stay beside it.
+| Target | Product | User directory | Project directory |
+|---|---|---|---|
+| `qoder` | Qoder (not "qcoder") | `~/.qoder/skills/` | `.qoder/skills/` |
+| `qoder-cn` | Qoder CN CLI, project scope only | not listed on the current skills page | `.qoder/skills/` |
+| `lingma` | Tongyi Lingma and the Qoder CN IDE | `~/.lingma/skills/` | `.lingma/skills/` |
+| `codebuddy` | CodeBuddy | `~/.codebuddy/skills/` | `.codebuddy/skills/` |
+| `trae` | TRAE international docs | `~/.trae/skills/` | `.trae/skills/` |
+| `trae-cn` | TRAE CN | `~/.trae-cn/skills/` | `.trae/skills/` |
+| `qwen` | Qwen Code | `~/.qwen/skills/` | `.qwen/skills/` |
+| `kimi` | Kimi Code CLI | `~/.kimi-code/skills/` | `.kimi-code/skills/` |
+| `claude` | Claude Code | `~/.claude/skills/` | `.claude/skills/` |
+| `cursor` | Cursor | `~/.cursor/skills/` | `.cursor/skills/` |
+
+Cursor also reads `.agents/skills/` in the same layout. Kimi Code CLI also scans `~/.agents/skills/` and `.agents/skills/`. TRAE CN loads a project `.agents/skills/` directory only after that import setting is enabled, and a same-named skill in `.trae/skills/` wins.
+
+These were checked and are not installed to a guessed path:
+
+- **CatPaw**: its public docs did not provide a `SKILL.md` directory. Secondary notes mention `.catpaw/rules`, which is a different rules file.
+- **WorkBuddy**: the official skills page describes uploading a package, but it does not name the directory. `podcast-transcript install-skill --target workbuddy --dest ./workbuddy-skill` prepares a folder you can upload. Third-party home-directory paths are not used.
+- **qcoder**: this is not a separate product name. Use `--target qoder`.
+
+Codex still uses the `$skill-installer` sentence above. Copy the folder rather than rewriting `SKILL.md`. The scripts must stay beside it.
 
 ## Your first audio or video
 
@@ -147,7 +193,7 @@ Generated transcripts do not include usernames, email addresses, local computer 
 |---|---|
 | First time processing audio or video | Review the setup plan, then choose `small`, `turbo`, or `large-v3` |
 | FFmpeg, CUDA, or another system dependency is missing | Install the dependency shown in the report; the setup script does not modify system settings for you |
-| An episode link cannot be read | Provide audio, video, or text that you obtained legally |
+| An episode link cannot be read | Use a Xiaoyuzhou episode URL, an Apple Podcasts URL with `i=`, an RSS feed, or a direct audio file. A show page or sign-in page is refused |
 | A speaker cannot be identified | Share the official episode page or correct name, or keep a neutral label |
 | One chunk fails | Keep the completed chunks and retry only the failed one after fixing the cause |
 | HTML is not generated | Keep the checked Markdown, then regenerate the HTML version |

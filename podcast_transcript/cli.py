@@ -55,6 +55,8 @@ def execute_run(
     output_dir: Path,
     *,
     language: Optional[str] = None,
+    initial_prompt: Optional[str] = None,
+    glossary: Optional[Path] = None,
     profile: Optional[str] = None,
     accept_download: bool = False,
     diarize_requested: bool = False,
@@ -103,6 +105,10 @@ def execute_run(
     transcribe_command = ["transcribe.py", str(media), "--output-dir", str(output)]
     if language:
         transcribe_command.extend(["--language", language])
+    if initial_prompt:
+        transcribe_command.extend(["--initial-prompt", initial_prompt])
+    if glossary:
+        transcribe_command.extend(["--glossary", str(glossary)])
     _invoke(runner, transcribe_command)
     raw_transcript = output / "raw-transcript.txt"
     segments_path = output / "segments.json"
@@ -189,7 +195,7 @@ def _invoke(runner: Runner, command: list[str]) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Transcribe a local file or direct media URL with the local podcast skill."
+        description="Transcribe a local file, direct media URL, episode page, or RSS feed."
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -197,9 +203,21 @@ def _parser() -> argparse.ArgumentParser:
         "run",
         help="Transcribe audio or video to raw text, segments, and simple Markdown.",
     )
-    run_parser.add_argument("input", help="Local audio/video file or a direct http(s) media URL.")
+    run_parser.add_argument(
+        "input",
+        help="Local audio/video, a direct media URL, a Xiaoyuzhou or Apple episode page, or an RSS/Atom feed.",
+    )
     run_parser.add_argument("--output-dir", type=Path, required=True)
-    run_parser.add_argument("--language")
+    run_parser.add_argument(
+        "--language",
+        help="auto, zh, en, or zh-en. zh-en keeps Chinese punctuation and English names.",
+    )
+    run_parser.add_argument("--initial-prompt")
+    run_parser.add_argument(
+        "--glossary",
+        type=Path,
+        help="UTF-8 names and terms, one per line.",
+    )
     run_parser.add_argument("--profile", choices=("small", "turbo", "large-v3"))
     run_parser.add_argument("--accept-download", action="store_true")
     run_parser.add_argument("--diarize", action="store_true")
@@ -235,6 +253,15 @@ def _parser() -> argparse.ArgumentParser:
         "diarize", help="Plan, install, or apply optional speaker diarization."
     )
     diarize_parser.add_argument("args", nargs=argparse.REMAINDER)
+
+    install_parser = commands.add_parser(
+        "install-skill",
+        help="Copy SKILL.md and scripts into a verified assistant skill directory.",
+    )
+    install_parser.add_argument("--target")
+    install_parser.add_argument("--scope", choices=("user", "project"), default="user")
+    install_parser.add_argument("--dest", type=Path)
+    install_parser.add_argument("--list", action="store_true", dest="list_targets")
     return parser
 
 
@@ -247,6 +274,8 @@ def run(argv: Optional[list[str]] = None) -> int:
                 args.input,
                 args.output_dir,
                 language=args.language,
+                initial_prompt=args.initial_prompt,
+                glossary=args.glossary,
                 profile=args.profile,
                 accept_download=args.accept_download,
                 diarize_requested=args.diarize,
@@ -284,6 +313,21 @@ def run(argv: Optional[list[str]] = None) -> int:
             return int(split_mod.main(forwarded))
         if args.command == "diarize":
             return script_runner(["diarize.py", *_strip_remainder(args.args)])
+        if args.command == "install-skill":
+            from podcast_transcript.skill_install import describe_targets, install_skill
+
+            if args.list_targets:
+                print(json.dumps(describe_targets(), ensure_ascii=False, indent=2))
+                return 0
+            if not args.target:
+                parser.error("install-skill requires --target or --list")
+            destination = install_skill(
+                args.target,
+                scope=args.scope,
+                dest=args.dest,
+            )
+            print(str(destination))
+            return 0
     except subprocess.CalledProcessError as exc:
         print(f"error: command failed ({exc.returncode})", file=sys.stderr)
         return exc.returncode or 1
@@ -294,6 +338,9 @@ def run(argv: Optional[list[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2
