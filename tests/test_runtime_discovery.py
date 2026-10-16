@@ -123,6 +123,7 @@ class RuntimeDiscoveryTest(unittest.TestCase):
             )
             json.dumps(report)
             self.assertTrue(report["system_dependencies"]["ffmpeg"])
+            self.assertEqual("not installed", report["diarization"]["status"])
             self.assertFalse(root.exists())
 
 

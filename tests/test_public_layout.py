@@ -12,6 +12,7 @@ RUNTIME_SCRIPTS = {
     "setup.py",
     "transcribe.py",
     "split_transcript.py",
+    "diarize.py",
 }
 REPOSITORY_URL = "https://github.com/ZHUCH-520/podcast-trancript-public"
 SKILL_URL = REPOSITORY_URL + "/tree/main/podcast-trancript-public"

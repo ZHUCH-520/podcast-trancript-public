@@ -87,6 +87,8 @@ The summary is an entry point. It never replaces the full transcript.
 
 Claims, examples, caveats, and useful speaking habits stay in the transcript. If a speaker's identity cannot be confirmed, the skill uses a neutral label such as `Speaker A` instead of guessing.
 
+Optional local diarization can add IDs such as `SPEAKER_00`. It stays off until you approve a separate download. Those IDs are not names; the skill still checks them against the episode page.
+
 ## Where files go
 
 After local transcription is ready, the audio and models remain on your computer. Models live in the system user cache; episode files and transcripts stay in the folder created for that task.

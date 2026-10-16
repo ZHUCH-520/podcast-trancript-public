@@ -48,6 +48,8 @@ def build_report(paths: RuntimePaths, facts: MachineFacts) -> dict:
     if paths.state.is_file():
         state = json.loads(paths.state.read_text(encoding="utf-8"))
     source = source_for(profile, backend)
+    from diarize import diarization_status
+
     return {
         "supported": facts.python_supported,
         "system": facts.system,
@@ -62,6 +64,7 @@ def build_report(paths: RuntimePaths, facts: MachineFacts) -> dict:
             "ffmpeg": facts.ffmpeg_available if backend == "mlx" else None,
         },
         "installed": state,
+        "diarization": diarization_status(paths),
     }
 
 
@@ -184,6 +187,7 @@ def _human_report(report: dict) -> str:
             f"Download bytes: {report['download_bytes']}",
             f"Cache: {report['cache_root']}",
             f"Installed: {installed_text}",
+            f"Diarization: {report['diarization']['status']}",
         ]
     )
 
