@@ -14,6 +14,8 @@ This skill is local-first. It preserves the source material, verifies important 
 
 It includes scripts for checking the computer, preparing a local Whisper runtime after approval, transcribing without a cloud service, and splitting long transcripts without losing text. It does not bundle model files, downloaders, or cloud credits. It does not upload or publish anything unless the user separately asks for that action.
 
+The same folder can be copied into Claude Code (`~/.claude/skills/podcast-trancript-public/` or `.claude/skills/podcast-trancript-public/`) or Cursor (`~/.cursor/skills/podcast-trancript-public/`, `.cursor/skills/podcast-trancript-public/`, or `.agents/skills/podcast-trancript-public/`). Keep the folder name. A standalone `podcast-transcript run` command can write an unproofread `transcript.md` before this workflow starts. Do not treat that file as the proofread deliverable; keep following the steps below, and do not overwrite it unless the user explicitly asks.
+
 ## What this skill does
 
 Use this workflow for:

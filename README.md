@@ -35,6 +35,42 @@ Use $podcast-trancript-public to edit this recording in English and create Markd
 
 If you already have a rough transcript, send the text directly. Speech recognition is not required.
 
+## Use it without Codex
+
+Install the command-line tool with pipx. The package does not download a model during installation:
+
+```bash
+pipx install "git+https://github.com/ZHUCH-520/podcast-trancript-public.git"
+```
+
+One command transcribes a local audio or video file. The first run prints the setup plan and stops until you approve the download:
+
+```bash
+podcast-transcript run episode.mp3 --output-dir ./episode --accept-download
+```
+
+A direct media URL works the same way. A show page, sign-in link, or URL with embedded credentials is refused.
+
+```bash
+podcast-transcript run https://example.com/episode.mp3 --output-dir ./episode --accept-download --diarize --captions both
+```
+
+The command writes `raw-transcript.txt`, `segments.json`, and a simple `transcript.md`. `--diarize` adds `SPEAKER_00` style IDs when that optional runtime is already installed, or when `--accept-download` also covers its install. If diarization cannot be installed, the transcript is still written. `--captions both` also writes `transcript.srt` and `transcript.vtt`. Existing files are not overwritten. Choose `small`, `turbo`, or `large-v3` with `--profile`; otherwise the recommended profile is used. `large-v3` is never chosen automatically.
+
+`transcript.md` from this command is a readable copy of the raw segments. It is not the proofread Markdown and HTML the Codex skill produces.
+
+`podcast-transcript doctor`, `plan`, `setup`, `split`, and `diarize` call the same scripts as the skill. `podcast-transcript export segments.json --format srt --output captions.srt` renders captions from an existing segment file.
+
+### Claude Code and Cursor
+
+The skill is the `podcast-trancript-public` folder (`SKILL.md` plus `scripts/`). Keep that folder name; it matches the skill name.
+
+- Codex: use the `$skill-installer` sentence above.
+- Claude Code: copy the folder to `~/.claude/skills/podcast-trancript-public/` for every project, or to `.claude/skills/podcast-trancript-public/` inside one project.
+- Cursor: copy it to `~/.cursor/skills/podcast-trancript-public/` or `.cursor/skills/podcast-trancript-public/`. Cursor also reads `.agents/skills/` in the same layout.
+
+Copy the folder rather than rewriting `SKILL.md`. The scripts must stay beside it.
+
 ## Your first audio or video
 
 You do not need to set up Whisper in advance. When the skill receives audio or video for the first time, it checks your computer and shows a setup plan before downloading anything:
@@ -122,6 +158,7 @@ Generated transcripts do not include usernames, email addresses, local computer 
 - `README.md`: installation and usage guidance
 - [`index.html`](./docs/index.html): the English GitHub Pages introduction
 - [`zh.html`](./docs/zh.html): the Chinese GitHub Pages introduction
+- `pyproject.toml`: the `podcast-transcript` command used by `pipx install`
 
 ## License
 
